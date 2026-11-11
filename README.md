@@ -42,4 +42,12 @@ In GitHub, open **Settings → Pages** and set **Build and deployment → Source
 
 ## Source-code and third-party rights
 
-The design and code in this repository are independently implemented for Boatswain Group. External products such as Zillow are feature references only; no proprietary Zillow source, branding or listings are reproduced. The separate demtaiwo1-eng/Winning-game- repository has no declared licence file; obtain permission from its rights holder before wholesale code reuse.
+The design and code in this repository are independently implemented for Boatswain Group. External products such as Zillow are feature references only; no proprietary Zillow source, branding or listings are reproduced. The separate demtaiwo1-eng/Winning-game- repository has no declared licence file. The project owner has explicitly authorized reuse as a foundation; keep the source untouched and review third-party notices, dependencies and security before adapting code.
+
+
+## Latest implementation update
+- The public property catalogue now lists the six property pages found during the 20-page reference-site audit, with links to the original detail pages.
+- Listing prices, sizes and availability are explicitly presented as values displayed on the reference website, not verified current inventory. Several source descriptions are marked as demo placeholders; confirm all facts with the business before accepting payment.
+- Enquiry forms open a pre-filled WhatsApp message to the published Boatswain contact number; customers review and send the message themselves. No form data is stored by this static website.
+- The official Boatswain Properties logo image is used as the temporary group mark pending the group logo.
+- Automated static-site regression checks cover all six listings, contact handoff and important disclosures.
