@@ -91,6 +91,7 @@ model Enquiry {
   phone     String
   interest  String
   message   String
+  contactConsent Boolean @default(false)
   createdAt DateTime  @default(now())
   @@index([createdAt])
 }
