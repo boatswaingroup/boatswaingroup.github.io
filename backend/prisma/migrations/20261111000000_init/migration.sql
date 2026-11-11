@@ -53,6 +53,7 @@ CREATE TABLE "Enquiry" (
   "phone" TEXT NOT NULL,
   "interest" TEXT NOT NULL,
   "message" TEXT NOT NULL,
+  "contactConsent" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "Enquiry_pkey" PRIMARY KEY ("id")
 );
