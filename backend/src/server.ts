@@ -32,7 +32,7 @@ function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   const token = req.header('authorization')?.replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { issuer: 'boatswain-property-api', audience: 'boatswain-web' }) as jwt.JwtPayload;
     if (typeof decoded.sub !== 'string' || !Object.values(CustomerRole).includes(decoded.role as CustomerRole)) {
       return res.status(401).json({ error: 'Invalid access token' });
     }
@@ -109,7 +109,7 @@ app.get('/api/estates/:slug/plots', asyncRoute(async (req, res) => {
   const estate = await prisma.estate.findUnique({ where: { slug: req.params.slug } });
   if (!estate || !estate.published) return res.status(404).json({ error: 'Estate not found' });
   const plots = await prisma.plot.findMany({ where: { estateId: estate.id, status: PlotStatus.AVAILABLE }, select: { id: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true }, orderBy: { plotCode: 'asc' } });
-  return res.json({ estate: { id: estate.id, name: estate.name, slug: estate.slug }, plots });
+  return res.json({ estate: { id: estate.id, name: estate.name, slug: estate.slug }, plots: plots.map(plot => ({ ...plot, priceKobo: plot.priceKobo?.toString() ?? null })) });
 }));
 
 app.post('/api/enquiries', asyncRoute(async (req, res) => {
