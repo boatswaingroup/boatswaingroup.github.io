@@ -24,6 +24,17 @@ jobs:
           bash -n scripts/import-winning-game-foundation.sh
           node --check scripts/audit-reference-site.mjs
           node scripts/test-site.mjs
+      - name: Validate and build property API
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/boatswain?schema=public
+          JWT_SECRET: test-only-secret-with-more-than-32-characters
+          NODE_ENV: test
+        run: |
+          npm install --no-audit --no-fund
+          npx prisma validate
+          npx prisma generate
+          npm run build
       - name: Install browser audit dependency
         run: |
           npm init -y
