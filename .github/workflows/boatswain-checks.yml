@@ -1,0 +1,45 @@
+name: Boatswain repository checks
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: boatswain-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check helper script syntax
+        run: |
+          bash -n scripts/import-winning-game-foundation.sh
+          node --check scripts/audit-reference-site.mjs
+      - name: Install browser audit dependency
+        run: |
+          npm init -y
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Audit public Boatswain Properties website
+        env:
+          REFERENCE_URL: https://www.boatswainproperties.com
+          MAX_PAGES: 20
+          PAGE_DELAY_MS: 1200
+          AUDIT_OUT: ./reference-audit
+        run: node scripts/audit-reference-site.mjs
+      - name: Upload browser audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boatswain-reference-audit
+          path: reference-audit/
+          if-no-files-found: warn
+          retention-days: 14
