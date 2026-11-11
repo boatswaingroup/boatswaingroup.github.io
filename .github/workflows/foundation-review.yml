@@ -2,6 +2,11 @@ name: Winning-game foundation compatibility review
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'foundation/**'
+      - 'scripts/import-winning-game-foundation.sh'
+      - 'docs/ARCHITECTURE.md'
+      - '.github/workflows/foundation-review.yml'
   workflow_dispatch:
 permissions:
   contents: read
