@@ -12,6 +12,10 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
+      JWT_SECRET: test-secret-test-secret-test-secret-1234
+      NODE_ENV: test
     steps:
       - name: Check out authorized source foundation
         uses: actions/checkout@v4
