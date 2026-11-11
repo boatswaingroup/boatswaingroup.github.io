@@ -43,7 +43,8 @@ function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   }
 }
 function requireStaff(req: AuthedRequest, res: Response, next: NextFunction) {
-  if (!req.user || ![CustomerRole.ADMIN, CustomerRole.SALES, CustomerRole.FINANCE].includes(req.user.role)) {
+  const staffRoles = new Set<CustomerRole>([CustomerRole.ADMIN, CustomerRole.SALES, CustomerRole.FINANCE]);
+  if (!req.user || !staffRoles.has(req.user.role)) {
     return res.status(403).json({ error: 'Staff access required' });
   }
   next();
