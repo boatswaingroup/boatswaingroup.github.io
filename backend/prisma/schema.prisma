@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CustomerRole {
+  CUSTOMER
+  ADMIN
+  SALES
+  FINANCE
+}
+
+enum PlotStatus {
+  AVAILABLE
+  RESERVED
+  ALLOCATED
+  WITHDRAWN
+}
+
+enum ReservationStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  CONVERTED
+}
+
+model Customer {
+  id           String      @id @default(cuid())
+  fullName     String
+  email        String      @unique
+  phone        String
+  passwordHash String
+  role         CustomerRole @default(CUSTOMER)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  enquiries    Enquiry[]
+  reservations Reservation[]
+}
+
+model Estate {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  location    String
+  description String   @default("")
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  plots       Plot[]
+}
+
+model Plot {
+  id           String      @id @default(cuid())
+  estateId     String
+  estate       Estate      @relation(fields: [estateId], references: [id], onDelete: Restrict)
+  plotCode     String
+  sizeSqm      Int?
+  priceKobo    BigInt?
+  status       PlotStatus  @default(AVAILABLE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  reservations Reservation[]
+  @@unique([estateId, plotCode])
+  @@index([estateId, status])
+}
+
+model Reservation {
+  id          String            @id @default(cuid())
+  customerId  String
+  customer    Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plotId      String
+  plot        Plot              @relation(fields: [plotId], references: [id], onDelete: Restrict)
+  status      ReservationStatus @default(ACTIVE)
+  expiresAt   DateTime
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  @@index([plotId, status, expiresAt])
+  @@index([customerId, createdAt])
+}
+
+model Enquiry {
+  id        String    @id @default(cuid())
+  customerId String?
+  customer  Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  fullName  String
+  email     String
+  phone     String
+  interest  String
+  message   String
+  createdAt DateTime  @default(now())
+  @@index([createdAt])
+}
