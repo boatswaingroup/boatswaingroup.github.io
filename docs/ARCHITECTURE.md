@@ -3,7 +3,7 @@
 ## Reference foundation
 The requested reference is demtaiwo1-eng/Winning-game- on its main branch. Inspection confirms a TypeScript/React monorepo with an eventsss123/eventsss-main workspace, a web app, an API workspace, database/Prisma scripts, automated tests and GitHub Actions workflows. Treat these as candidate patterns, not proof that every workflow or subsystem is safe or production-ready.
 
-The source repository has no declared licence and the connected account has read-only access. Do not copy its source files wholesale until the rights holder's permission is confirmed. Keep the source repository untouched.
+The source repository has no declared licence. The Boatswain project owner explicitly authorized reuse of this repository as a foundation. Preserve the original repository untouched, retain applicable notices, and review all dependencies, code provenance and third-party rights before adapting components. The compatibility workflow checks out the source into an isolated CI workspace; it does not import or deploy the source application.
 
 ## Target platform
 - React + TypeScript responsive web client.
@@ -29,3 +29,7 @@ users, profiles, roles, permissions; divisions and content; estates and plots; r
 
 ## Delivery controls
 Use pull requests, CI for type/lint/test/build, dependency and secret scanning, staging with payment sandbox credentials, database backups, monitoring, post-deploy smoke tests and documented rollback. Do not label the platform production-ready until these controls and end-to-end flows are verified.
+
+
+## Foundation compatibility results (11 November 2026)
+The isolated CI workflow successfully installed the source lockfile, ran the API checks, web tests and KYC self-test, built the web client and compiled the API. This establishes that the source snapshot can pass its current automated checks in CI; it does not establish that its event-management domain is suitable as the Boatswain property backend. The web build emits a large JavaScript chunk warning (about 814 kB before gzip). A dependency audit also reported 9 advisories (2 low, 4 moderate, 2 high and 1 critical); review and remediate these before any production reuse.
