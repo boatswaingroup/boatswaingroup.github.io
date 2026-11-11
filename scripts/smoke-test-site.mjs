@@ -19,7 +19,7 @@ try {
   await page.locator('#accountForm [name="email"]').fill('browser-test@example.test');
   await page.locator('#accountForm [name="phone"]').fill('+2348030000000');
   await page.locator('#accountForm input[type="checkbox"]').check();
-  const popupPromise = page.waitForEvent('popup');
+  const popupPromise = page.context().waitForEvent('page');
   await page.locator('#accountForm button[type="submit"]').click();
   const popup = await popupPromise;
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
