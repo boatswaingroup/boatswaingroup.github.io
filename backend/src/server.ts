@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Prisma, PrismaClient, CustomerRole, PlotStatus, ReservationStatus } from '@prisma/client';
 import { z } from 'zod';
+import { pathToFileURL } from 'node:url';
 
 const required = ['DATABASE_URL', 'JWT_SECRET'] as const;
 for (const key of required) {
@@ -14,8 +15,8 @@ for (const key of required) {
 }
 if ((process.env.JWT_SECRET ?? '').length < 32) throw new Error('JWT_SECRET must contain at least 32 characters');
 
-const prisma = new PrismaClient();
-const app = express();
+export const prisma = new PrismaClient();
+export const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors({ origin: (process.env.CORS_ORIGIN ?? '').split(',').map(v => v.trim()).filter(Boolean), credentials: false }));
@@ -130,7 +131,9 @@ app.get('/api/staff/enquiries', authenticate, requireStaff, asyncRoute(async (_r
 app.post('/api/plots/:plotId/reservations', authenticate, asyncRoute(async (req, res) => {
   const plotId = req.params.plotId;
   const now = new Date();
-  const result = await prisma.$transaction(async tx => {
+  let result: { id: string; plotId: string; status: ReservationStatus; expiresAt: Date } | null;
+  try {
+    result = await prisma.$transaction(async tx => {
     const expired = await tx.reservation.findMany({ where: { status: ReservationStatus.ACTIVE, expiresAt: { lte: now } }, select: { id: true, plotId: true } });
     if (expired.length) {
       await tx.reservation.updateMany({ where: { id: { in: expired.map(r => r.id) } }, data: { status: ReservationStatus.EXPIRED } });
@@ -139,7 +142,13 @@ app.post('/api/plots/:plotId/reservations', authenticate, asyncRoute(async (req,
     const changed = await tx.plot.updateMany({ where: { id: plotId, status: PlotStatus.AVAILABLE, estate: { published: true } }, data: { status: PlotStatus.RESERVED } });
     if (changed.count !== 1) return null;
     return tx.reservation.create({ data: { plotId, customerId: req.user!.id, expiresAt: new Date(now.getTime() + 20 * 60 * 1000) }, select: { id: true, plotId: true, status: true, expiresAt: true } });
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return res.status(409).json({ error: 'This plot was reserved by another customer. Refresh the plot list.' });
+    }
+    throw error;
+  }
   if (!result) return res.status(409).json({ error: 'This plot is not currently available. Refresh the plot list.' });
   return res.status(201).json({ reservation: result, message: 'Plot held for 20 minutes. No payment has been taken.' });
 }));
@@ -149,8 +158,10 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   return res.status(500).json({ error: 'An unexpected server error occurred' });
 });
 
-const port = Number(process.env.PORT || 4000);
-const server = app.listen(port, () => console.log(`Boatswain Property API listening on ${port}`));
-const shutdown = async () => { server.close(); await prisma.$disconnect(); };
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const port = Number(process.env.PORT || 4000);
+  const server = app.listen(port, () => console.log(`Boatswain Property API listening on ${port}`));
+  const shutdown = async () => { server.close(); await prisma.$disconnect(); };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
