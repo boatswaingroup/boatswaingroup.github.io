@@ -61,7 +61,8 @@ const enquirySchema = z.object({
   email: z.string().trim().email().max(254),
   phone: z.string().trim().min(7).max(24),
   interest: z.string().trim().min(2).max(100),
-  message: z.string().trim().min(5).max(3000)
+  message: z.string().trim().min(5).max(3000),
+  contactConsent: z.literal(true)
 });
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'boatswain-property-api' }));
