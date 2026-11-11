@@ -35,10 +35,18 @@ jobs:
         run: npm ci
       - name: Run API checks, web tests and KYC self-test
         working-directory: foundation/Winning-game/eventsss123/eventsss-main
+        env:
+          DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
+          JWT_SECRET: test-secret-test-secret-test-secret-1234
+          NODE_ENV: test
         run: npm run check
       - name: Build web application
         working-directory: foundation/Winning-game/eventsss123/eventsss-main
+        env:
+          DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
         run: npm run build:web
       - name: Build API
         working-directory: foundation/Winning-game/eventsss123/eventsss-main
+        env:
+          DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
         run: npm run build
