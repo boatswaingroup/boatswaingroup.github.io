@@ -56,6 +56,8 @@ jobs:
           npm init -y
           npm install --no-save playwright
           npx playwright install --with-deps chromium
+      - name: Smoke-test Boatswain website in Chromium
+        run: node scripts/smoke-test-site.mjs
       - name: Audit public Boatswain Properties website
         env:
           REFERENCE_URL: https://www.boatswainproperties.com
