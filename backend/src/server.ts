@@ -103,6 +103,22 @@ app.get('/api/me', authenticate, asyncRoute(async (req, res) => {
   return res.json({ customer });
 }));
 
+app.get('/api/me/reservations', authenticate, asyncRoute(async (req, res) => {
+  const reservations = await prisma.reservation.findMany({
+    where: { customerId: req.user!.id },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    select: {
+      id: true, status: true, expiresAt: true, createdAt: true,
+      plot: { select: { plotCode: true, sizeSqm: true, priceKobo: true, estate: { select: { name: true, location: true } } } }
+    }
+  });
+  return res.json({ reservations: reservations.map(item => ({
+    ...item,
+    plot: { ...item.plot, priceKobo: item.plot.priceKobo?.toString() ?? null }
+  })) });
+}));
+
 app.get('/api/estates', asyncRoute(async (_req, res) => {
   const estates = await prisma.estate.findMany({ where: { published: true }, orderBy: { name: 'asc' }, include: { _count: { select: { plots: { where: { status: PlotStatus.AVAILABLE } } } } } });
   return res.json({ estates });
