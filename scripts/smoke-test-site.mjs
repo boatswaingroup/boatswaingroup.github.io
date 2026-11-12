@@ -19,12 +19,9 @@ try {
   await page.locator('#accountForm [name="email"]').fill('browser-test@example.test');
   await page.locator('#accountForm [name="phone"]').fill('+2348030000000');
   await page.locator('#accountForm input[type="checkbox"]').check();
-  const popupPromise = page.context().waitForEvent('page');
+  const whatsappRequest = page.waitForRequest(request => request.url().startsWith('https://wa.me/2348033635755'));
   await page.locator('#accountForm button[type="submit"]').click();
-  const popup = await popupPromise;
-  await popup.waitForLoadState('domcontentloaded').catch(() => {});
-  if (!popup.url().includes('wa.me/2348033635755')) throw new Error('Enquiry did not open the published Boatswain WhatsApp number');
-  await popup.close();
+  await whatsappRequest;
   console.log('Browser smoke test passed: property search, type filter, registration-interest form and WhatsApp handoff.');
 } finally {
   await browser.close();
