@@ -82,5 +82,11 @@ describe('Boatswain Property API', () => {
     ]);
     expect(attempts.map(r => r.status).sort()).toEqual([201, 409]);
     expect(attempts.find(r => r.status === 201)?.body.reservation.status).toBe('ACTIVE');
+    const ownReservations = await request(app).get('/api/me/reservations').set('Authorization', `Bearer ${customerToken}`);
+    const otherReservations = await request(app).get('/api/me/reservations').set('Authorization', `Bearer ${secondCustomerToken}`);
+    expect(ownReservations.status).toBe(200);
+    expect(ownReservations.body.reservations).toHaveLength(1);
+    expect(ownReservations.body.reservations[0].plot.estate.name).toBe('Automated Test Estate');
+    expect(otherReservations.body.reservations).toHaveLength(0);
   });
 });
