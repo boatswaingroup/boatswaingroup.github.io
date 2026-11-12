@@ -43,6 +43,10 @@ function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
     return res.status(401).json({ error: 'Invalid or expired access token' });
   }
 }
+function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
+  if (!req.user || req.user.role !== CustomerRole.ADMIN) return res.status(403).json({ error: 'Administrator access required' });
+  next();
+}
 function requireStaff(req: AuthedRequest, res: Response, next: NextFunction) {
   const staffRoles = new Set<CustomerRole>([CustomerRole.ADMIN, CustomerRole.SALES, CustomerRole.FINANCE]);
   if (!req.user || !staffRoles.has(req.user.role)) {
@@ -57,6 +61,23 @@ const registerSchema = z.object({
   password: z.string().min(12).max(128)
 });
 const loginSchema = z.object({ email: z.string().email().transform(v => v.toLowerCase()), password: z.string().min(1).max(128) });
+const estateCreateSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100),
+  location: z.string().trim().min(2).max(200),
+  description: z.string().trim().max(5000).optional(),
+  published: z.boolean().optional()
+});
+const plotCreateSchema = z.object({
+  plotCode: z.string().trim().min(1).max(40),
+  sizeSqm: z.number().int().positive().max(1000000).optional(),
+  priceKobo: z.string().regex(/^\\d{1,18}$/).optional()
+});
+const plotUpdateSchema = z.object({
+  sizeSqm: z.number().int().positive().max(1000000).nullable().optional(),
+  priceKobo: z.string().regex(/^\\d{1,18}$/).nullable().optional(),
+  status: z.nativeEnum(PlotStatus).optional()
+}).refine(value => Object.keys(value).length > 0, 'At least one field is required');
 const enquirySchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254),
@@ -137,6 +158,65 @@ app.post('/api/enquiries', asyncRoute(async (req, res) => {
   const customerId = (req as AuthedRequest).user?.id;
   const enquiry = await prisma.enquiry.create({ data: { ...parsed.data, customerId } });
   return res.status(201).json({ enquiry: { id: enquiry.id, createdAt: enquiry.createdAt }, message: 'Enquiry received' });
+}));
+
+app.get('/api/staff/estates', authenticate, requireAdmin, asyncRoute(async (_req, res) => {
+  const estates = await prisma.estate.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { plots: { orderBy: { plotCode: 'asc' }, select: { id: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } } }
+  });
+  return res.json({ estates: estates.map(estate => ({
+    ...estate, plots: estate.plots.map(plot => ({ ...plot, priceKobo: plot.priceKobo?.toString() ?? null }))
+  })) });
+}));
+
+app.post('/api/staff/estates', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = estateCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid estate details', details: parsed.error.flatten() });
+  try {
+    const estate = await prisma.estate.create({ data: parsed.data });
+    return res.status(201).json({ estate });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ error: 'An estate with this slug already exists' });
+    throw error;
+  }
+}));
+
+app.post('/api/staff/estates/:estateId/plots', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = plotCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid plot details', details: parsed.error.flatten() });
+  const estate = await prisma.estate.findUnique({ where: { id: req.params.estateId } });
+  if (!estate) return res.status(404).json({ error: 'Estate not found' });
+  try {
+    const plot = await prisma.plot.create({ data: {
+      estateId: estate.id, plotCode: parsed.data.plotCode, sizeSqm: parsed.data.sizeSqm,
+      priceKobo: parsed.data.priceKobo === undefined ? null : BigInt(parsed.data.priceKobo)
+    }, select: { id: true, estateId: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } });
+    return res.status(201).json({ plot: { ...plot, priceKobo: plot.priceKobo?.toString() ?? null } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ error: 'That plot code already exists in this estate' });
+    throw error;
+  }
+}));
+
+app.patch('/api/staff/plots/:plotId', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = plotUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid plot update', details: parsed.error.flatten() });
+  const current = await prisma.plot.findUnique({ where: { id: req.params.plotId } });
+  if (!current) return res.status(404).json({ error: 'Plot not found' });
+  if (parsed.data.status && parsed.data.status !== current.status) {
+    const activeReservation = await prisma.reservation.findFirst({
+      where: { plotId: current.id, status: ReservationStatus.ACTIVE, expiresAt: { gt: new Date() } },
+      select: { id: true }
+    });
+    if (activeReservation) return res.status(409).json({ error: 'A plot with an active customer reservation cannot change status' });
+  }
+  const data: Prisma.PlotUpdateInput = {};
+  if (parsed.data.sizeSqm !== undefined) data.sizeSqm = parsed.data.sizeSqm;
+  if (parsed.data.priceKobo !== undefined) data.priceKobo = parsed.data.priceKobo === null ? null : BigInt(parsed.data.priceKobo);
+  if (parsed.data.status !== undefined) data.status = parsed.data.status;
+  const plot = await prisma.plot.update({ where: { id: current.id }, data, select: { id: true, estateId: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } });
+  return res.json({ plot: { ...plot, priceKobo: plot.priceKobo?.toString() ?? null } });
 }));
 
 app.get('/api/staff/enquiries', authenticate, requireStaff, asyncRoute(async (_req, res) => {
