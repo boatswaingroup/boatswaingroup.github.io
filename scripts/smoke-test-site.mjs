@@ -5,6 +5,7 @@ import path from 'node:path';
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage();
+  await page.addInitScript(() => { window.open = (url) => { window.__boatswainOpenedUrl = String(url); return null; }; });
   await page.goto(pathToFileURL(path.resolve('index.html')).href);
   await page.waitForLoadState('domcontentloaded');
   if (await page.locator('.property').count() !== 6) throw new Error('Expected six property cards');
@@ -21,9 +22,9 @@ try {
   await page.locator('#accountForm [name="email"]').fill('browser-test@example.test');
   await page.locator('#accountForm [name="phone"]').fill('+2348030000000');
   await page.locator('#accountForm input[type="checkbox"]').check();
-  const whatsappRequest = page.waitForRequest(request => request.url().startsWith('https://wa.me/2348033635755'));
   await page.locator('#accountForm button[type="submit"]').click();
-  await whatsappRequest;
+  const openedUrl = await page.evaluate(() => window.__boatswainOpenedUrl || '');
+  if (!openedUrl.startsWith('https://wa.me/2348033635755?text=')) throw new Error('WhatsApp enquiry handoff did not generate the expected destination URL');
   console.log('Browser smoke test passed: property search, type filter, registration-interest form and WhatsApp handoff.');
 } finally {
   await browser.close();
