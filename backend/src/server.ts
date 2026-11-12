@@ -71,11 +71,11 @@ const estateCreateSchema = z.object({
 const plotCreateSchema = z.object({
   plotCode: z.string().trim().min(1).max(40),
   sizeSqm: z.number().int().positive().max(1000000).optional(),
-  priceKobo: z.string().regex(/^\\d{1,18}$/).optional()
+  priceKobo: z.string().regex(/^\d{1,18}$/).optional()
 });
 const plotUpdateSchema = z.object({
   sizeSqm: z.number().int().positive().max(1000000).nullable().optional(),
-  priceKobo: z.string().regex(/^\\d{1,18}$/).nullable().optional(),
+  priceKobo: z.string().regex(/^\d{1,18}$/).nullable().optional(),
   status: z.nativeEnum(PlotStatus).optional()
 }).refine(value => Object.keys(value).length > 0, 'At least one field is required');
 const enquirySchema = z.object({
