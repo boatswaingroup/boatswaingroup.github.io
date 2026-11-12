@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import { CustomerRole, PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 import { app, prisma } from './server.js';
 
 const suffix = `test-${Date.now()}`;
@@ -10,6 +11,8 @@ let customerToken = '';
 let secondCustomerToken = '';
 let estateId = '';
 let plotId = '';
+let adminToken = '';
+let managedEstateId = '';
 
 async function register(email: string) {
   const response = await request(app).post('/api/auth/register').send({
@@ -30,10 +33,17 @@ beforeAll(async () => {
   plotId = plot.id;
   customerToken = await register(`${suffix}-one@example.test`);
   secondCustomerToken = await register(`${suffix}-two@example.test`);
+  const admin = await prisma.customer.create({ data: {
+    fullName: 'Boatswain Test Admin', email: `${suffix}-admin@example.test`, phone: '+2348030000001',
+    passwordHash: await bcrypt.hash(password, 12), role: CustomerRole.ADMIN
+  }});
+  adminToken = jwt.sign({ role: admin.role }, process.env.JWT_SECRET!, { subject: admin.id, expiresIn: '1h', issuer: 'boatswain-property-api', audience: 'boatswain-web' });
 });
 
 afterAll(async () => {
-  await prisma.reservation.deleteMany({ where: { plotId } });
+  await prisma.reservation.deleteMany({ where: { OR: [{ plotId }, { plot: { estateId: managedEstateId } }] } });
+  if (managedEstateId) await prisma.plot.deleteMany({ where: { estateId: managedEstateId } });
+  if (managedEstateId) await prisma.estate.deleteMany({ where: { id: managedEstateId } });
   await prisma.enquiry.deleteMany({ where: { email: { contains: suffix } } });
   await prisma.plot.deleteMany({ where: { estateId } });
   await prisma.estate.deleteMany({ where: { id: estateId } });
@@ -73,6 +83,33 @@ describe('Boatswain Property API', () => {
   it('does not allow customer tokens into staff-only enquiries', async () => {
     const response = await request(app).get('/api/staff/enquiries').set('Authorization', `Bearer ${customerToken}`);
     expect(response.status).toBe(403);
+  });
+
+
+  it('restricts inventory management to administrators and supports verified plot records', async () => {
+    const denied = await request(app).post('/api/staff/estates').set('Authorization', `Bearer ${customerToken}`)
+      .send({ name: 'Forbidden Estate', slug: `${suffix}-forbidden`, location: 'Ibadan, Oyo State' });
+    expect(denied.status).toBe(403);
+
+    const created = await request(app).post('/api/staff/estates').set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Managed Test Estate', slug: `${suffix}-managed`, location: 'Ibadan, Oyo State', published: true });
+    expect(created.status).toBe(201);
+    managedEstateId = created.body.estate.id;
+
+    const plot = await request(app).post(`/api/staff/estates/${managedEstateId}/plots`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ plotCode: 'A-001', sizeSqm: 300, priceKobo: '350000000' });
+    expect(plot.status).toBe(201);
+    expect(plot.body.plot.priceKobo).toBe('350000000');
+
+    const updated = await request(app).patch(`/api/staff/plots/${plot.body.plot.id}`)
+      .set('Authorization', `Bearer ${adminToken}`).send({ priceKobo: '375000000' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.plot.priceKobo).toBe('375000000');
+
+    const publicPlots = await request(app).get(`/api/estates/${suffix}-managed/plots`);
+    expect(publicPlots.status).toBe(200);
+    expect(publicPlots.body.plots).toHaveLength(1);
   });
 
   it('allows only one customer to hold a plot at a time', async () => {
