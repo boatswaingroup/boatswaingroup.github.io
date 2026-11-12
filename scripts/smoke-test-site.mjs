@@ -15,6 +15,8 @@ try {
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Property type filter did not return one agricultural listing');
   await page.locator('#type').selectOption('');
   await page.locator('[data-modal="account"]').first().click();
+  if (!(await page.locator('#accountUnavailable').isVisible())) throw new Error('Expected safe enquiry-only state while API URL is unset');
+  if (await page.locator('#accountAuth').isVisible()) throw new Error('Customer login must not appear before API configuration');
   await page.locator('#accountForm [name="name"]').fill('Browser Test Customer');
   await page.locator('#accountForm [name="email"]').fill('browser-test@example.test');
   await page.locator('#accountForm [name="phone"]').fill('+2348030000000');
