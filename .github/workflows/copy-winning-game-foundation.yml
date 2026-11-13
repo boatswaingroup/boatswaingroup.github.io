@@ -1,9 +1,6 @@
 name: Copy Winning Game foundation
 
 on:
-  push:
-    branches:
-      - copy-winning-game-foundation
   workflow_dispatch:
 
 permissions:
@@ -36,5 +33,5 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
-          git commit -m "Copy Winning-game repository into foundation"
+          git commit -m "Refresh Winning-game foundation copy"
           git push origin HEAD:copy-winning-game-foundation
