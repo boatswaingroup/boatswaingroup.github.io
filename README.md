@@ -4,21 +4,23 @@ A mobile-first public website foundation for Boatswain Group, with Boatswain Pro
 
 ## Current implementation
 
-- Responsive six-tile group landing page (2 rows × 3 columns on desktop).
-- Boatswain Properties catalogue preview with text search, property-type filter and sort.
-- Customer-interest and contact forms with client-side validation and preview-only confirmation.
-- Customer journey explanation covering the requested ₦350,000 deposit rule.
-- Agribusiness marketplace scope entry point for livestock and agricultural products.
-- GitHub Pages deployment workflow.
+- Responsive six-tile group landing page (2 rows × 3 columns on desktop), with Properties first and Agribusiness as a separate entry point.
+- Boatswain Properties catalogue, search, filters and detail links based on the audited public reference site; all commercial details remain unverified until approved by the business.
+- Separate Node/Express/TypeScript API and PostgreSQL/Prisma data layer.
+- Customer registration/login, customer profile, customer-scoped reservation history, public estate/plot inventory reads and consent-based enquiry API.
+- Administrator-only estate and plot inventory management endpoints.
+- Transactional 20-minute exact-plot reservations and customer plot picker; no payment is taken when a plot is held.
+- Initial payment-plan, instalment, provider-payment, provider-event idempotency and immutable-ledger database foundation.
+- GitHub Actions for API/database tests, static-site regression, Chromium browser smoke test and reference-site audit.
 
 ## Important status
 
-This repository currently contains a **frontend preview**, not a production transaction system. Forms do not transmit or persist personal data. No customer account, plot reservation, inventory lock, payment, receipt, or dashboard is active yet. The ₦350,000 figure is shown as a proposed business rule from the project brief and is not a payment request.
+This is an actively developed application foundation, **not yet a production-ready or live transaction system**. The API and database code are implemented on the development branch, but the public GitHub Pages frontend has no configured API URL and therefore does not expose live accounts or reservations. Payment tables are accounting infrastructure only: there is no payment initialization, gateway SDK, webhook, customer charge, or receipt generation. No live payment is enabled. The ₦350,000 amount is a proposed rule from the project brief, not a universal deposit policy or payment request.
 
 Production activation requires:
 1. Confirmed estate catalogue, plot dimensions, pricing, site plans, availability and allocation rules.
-2. Backend API and database with role-based access, customer accounts, plot reservation locking, ledger and audit logs.
-3. Payment provider account and server-side payment initialization, signed webhook verification, reconciliation and refunds policy. Never put secret keys in browser code.
+2. Production API/database hosting, secure administrator provisioning, account verification and recovery, session revocation, backups and monitoring.
+3. Confirmed deposit and instalment policies, merchant payment provider, sandbox integration, signed webhook verification, reconciliation, receipts and refunds policy. Never put secret keys in browser code.
 4. Approved legal Terms & Conditions, sale/allocation documents, privacy notice and data-retention policy.
 5. Transactional email/SMS, secure document storage, backups, monitoring and incident response.
 6. Automated tests, security review and end-to-end verification.
@@ -42,4 +44,38 @@ In GitHub, open **Settings → Pages** and set **Build and deployment → Source
 
 ## Source-code and third-party rights
 
-The design and code in this repository are independently implemented for Boatswain Group. External products such as Zillow are feature references only; no proprietary Zillow source, branding or listings are reproduced. The separate demtaiwo1-eng/Winning-game- repository has no declared licence file; obtain permission from its rights holder before wholesale code reuse.
+The design and code in this repository are independently implemented for Boatswain Group. External products such as Zillow are feature references only; no proprietary Zillow source, branding or listings are reproduced. The separate demtaiwo1-eng/Winning-game- repository has no declared licence file. The project owner has explicitly authorized reuse as a foundation; keep the source untouched and review third-party notices, dependencies and security before adapting code.
+
+
+## Latest implementation update
+- The public property catalogue now lists the six property pages found during the 20-page reference-site audit, with links to the original detail pages.
+- Listing prices, sizes and availability are explicitly presented as values displayed on the reference website, not verified current inventory. Several source descriptions are marked as demo placeholders; confirm all facts with the business before accepting payment.
+- Enquiry forms open a pre-filled WhatsApp message to the published Boatswain contact number; customers review and send the message themselves. No form data is stored by this static website.
+- The official Boatswain Properties logo image is used as the temporary group mark pending the group logo.
+- Automated static-site regression checks cover all six listings, contact handoff and important disclosures.
+
+
+## Development branch and review
+
+The active implementation is maintained on `project/boatswain-platform-foundation` in draft [PR #1](https://github.com/boatswaingroup/boatswain.github.io/pull/1). It is intentionally not merged to `main` or deployed as the live customer system. See `docs/ARCHITECTURE.md` for payment safeguards and remaining launch gates.
+
+
+## Product-design improvements (13 November 2026)
+- Completed a read-only TinyFish browser review of the live Boatswain Properties reference and the public group preview. Findings and caveats are recorded in `docs/TINYFISH_PRODUCT_DESIGN_AUDIT.md`.
+- Added a mobile navigation menu, more useful catalogue filters (type, location and availability), visible result count, empty state and clear-filters action.
+- Added lazy-loaded property imagery and meaningful alt text, plus a photographic hero treatment.
+- Fixed price sorting so the cards actually reorder in the displayed grid.
+- Replaced the blanket deposit wording with property-specific written-offer guidance. The reference website displays ₦350,000 / ₦550,000 / ₦1,100,000 by property type; those figures still require business confirmation.
+- Sign-out now revokes the current server session when the API is configured.
+- Expanded Chromium smoke coverage for the filters, empty state and mobile navigation.
+
+The public GitHub Pages URL still serves the older preview. These changes are on the development branch only and are not live.
+
+
+## Property-detail and purchase-planning journey
+- Catalogue cards now open an in-app property-detail view with the reference listing's displayed title, location, size, price range, status and source-page link.
+- Each displayed reference deposit is labelled unverified and is not a payment request or approved company quotation.
+- The detail view includes a buyer due-diligence checklist covering survey references, title review, boundaries/access, written price and instalment terms, allocation/refund conditions and official receipts.
+- An illustrative planner calculates a remaining balance and equal monthly scenario from a buyer-entered written total/deposit. It rejects deposits greater than the total and does not assume an approved rate, fees or contractual terms.
+- The property-specific enquiry CTA pre-fills the selected property and asks the team for verified inventory, title documents and written payment terms. It does not reserve a plot or collect money.
+- Chromium smoke coverage verifies the detail navigation, warning, planner calculation/validation, prefilled enquiry, back-to-catalogue flow and the existing catalogue/mobile checks.

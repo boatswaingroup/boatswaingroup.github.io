@@ -1,0 +1,75 @@
+name: Boatswain repository checks
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: boatswain-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: boatswain
+          POSTGRES_PASSWORD: boatswain-test
+          POSTGRES_DB: boatswain_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U boatswain -d boatswain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check helper script syntax
+        run: |
+          bash -n scripts/import-winning-game-foundation.sh
+          node --check scripts/audit-reference-site.mjs
+          node scripts/test-site.mjs
+      - name: Validate and build property API
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://boatswain:boatswain-test@127.0.0.1:5432/boatswain_test?schema=public
+          JWT_SECRET: test-only-secret-with-more-than-32-characters
+          NODE_ENV: test
+        run: |
+          npm install --no-audit --no-fund
+          npx prisma validate
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run build
+          npm test
+      - name: Install browser audit dependency
+        run: |
+          npm init -y
+          npm install --no-save playwright
+          npx playwright install chromium
+      - name: Smoke-test Boatswain website in Chromium
+        run: node scripts/smoke-test-site.mjs
+      - name: Audit public Boatswain Properties website
+        env:
+          REFERENCE_URL: https://www.boatswainproperties.com
+          MAX_PAGES: 20
+          PAGE_DELAY_MS: 1200
+          AUDIT_OUT: ./reference-audit
+        run: node scripts/audit-reference-site.mjs
+      - name: Upload browser audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boatswain-reference-audit
+          path: reference-audit/
+          if-no-files-found: warn
+          retention-days: 14
