@@ -87,3 +87,9 @@ The public GitHub Pages URL still serves the older preview. These changes are on
 - Ledger credits/debits are formatted from integer kobo values without converting through floating-point arithmetic.
 - Empty states distinguish between no approved plan and no provider-verified payment entries.
 - This is a read-only account statement view. It does not initiate payments or issue receipts; only provider-verified ledger entries are shown as recorded payments.
+
+
+## Secure account recovery
+- Added rate-limited, email-based password reset with generic account-existence responses, 30-minute single-use tokens stored only as hashes, password update and revocation of all active sessions.
+- SMTP and reset URL settings are deployment-only environment variables; no email credentials are committed. Password recovery is not live until a verified SMTP sender and HTTPS customer-site URL are configured.
+- The customer account modal now supports requesting a reset link and completing the reset from the emailed link. Browser and API tests use mocked email delivery.
