@@ -10,10 +10,16 @@ const required = [
   'Boatswain Royal Estate, Ido',
   'Ago-Are Commercial Plots',
   'Ona Ara Residential Plots',
-  '₦350,000',
+  'property-specific deposit',
   'wa.me/2348033635755',
   'boatswainproperties@gmail.com',
-  'media/boatlogo.png'
+  'media/boatlogo.png',
+  'locationFilter',
+  'availabilityFilter',
+  'menuToggle',
+  'resetFilters',
+  'aria-live="polite"',
+  'Your written offer must state the exact deposit'
 ];
 for (const value of required) assert.ok(html.includes(value), `Missing expected site content: ${value}`);
 assert.equal((html.match(/class="property"/g) || []).length, 6, 'Expected six property cards');
