@@ -1,0 +1,176 @@
+name: Android install and launch compatibility matrix
+
+# Run this expensive Android compatibility build only on demand or when
+# native Android/CAPACITOR build inputs change on main. Routine PR/web changes
+# are covered by the web/API workflows and do not boot Android emulators.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "eventsss123/eventsss-main/apps/mobile/android/**"
+      - "eventsss123/eventsss-main/apps/mobile/capacitor.config.*"
+      - "eventsss123/eventsss-main/apps/mobile/package.json"
+      - "eventsss123/eventsss-main/package-lock.json"
+      - "eventsss123/eventsss-main/scripts/android-emulator-smoke.sh"
+      - ".github/workflows/android-install-smoke.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-install-smoke-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build-apk:
+    name: Build Android test APK once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: eventsss123/eventsss-main
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: eventsss123/eventsss-main/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: eventsss123/eventsss-main/apps/mobile/android/**/*.gradle*
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --licenses <<'ANDROID_SDK_LICENSES'
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          ANDROID_SDK_LICENSES
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build web assets once
+        run: npm run build:web
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://ephinta-wss.onrender.com/api/v1' }}
+          VITE_UPDATE_URL: ${{ format('{0}/app-updates', vars.VITE_API_URL || 'https://ephinta-wss.onrender.com/api/v1') }}
+          VITE_APP_VERSION: ${{ github.sha }}
+
+      - name: Sync Capacitor Android project
+        run: npm run sync -w apps/mobile
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://ephinta-wss.onrender.com/api/v1' }}
+          VITE_UPDATE_URL: ${{ format('{0}/app-updates', vars.VITE_API_URL || 'https://ephinta-wss.onrender.com/api/v1') }}
+          VITE_APP_VERSION: ${{ github.sha }}
+
+      - name: Build and inspect APK
+        working-directory: eventsss123/eventsss-main/apps/mobile/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --build-cache --parallel assembleDebug
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$BT/apksigner" verify --verbose "$APK"
+          "$BT/aapt" dump badging "$APK" | grep -E "^(package:|sdkVersion:|targetSdkVersion:)"
+          unzip -t "$APK" >/dev/null
+          mkdir -p "$RUNNER_TEMP/ephinta-apk"
+          cp "$APK" "$RUNNER_TEMP/ephinta-apk/app-debug.apk"
+          sha256sum "$RUNNER_TEMP/ephinta-apk/app-debug.apk" > "$RUNNER_TEMP/ephinta-apk/SHA256SUMS.txt"
+
+      - name: Upload single APK for emulator matrix
+        uses: actions/upload-artifact@v4
+        with:
+          name: ephinta-android-matrix-apk
+          path: ${{ runner.temp }}/ephinta-apk/*
+          if-no-files-found: error
+          retention-days: 3
+
+  install-and-launch:
+    name: Android API ${{ matrix.api-level }} install and launch
+    needs: build-apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 42
+    strategy:
+      fail-fast: false
+      # Android emulators are memory-intensive; sequential boot avoids starving
+      # QEMU/ADB on standard hosted runners while still covering current OS levels.
+      max-parallel: 1
+      matrix:
+        api-level: [35, 36]
+    steps:
+      - name: Check out repository smoke-test script
+        uses: actions/checkout@v4
+
+      - name: Download the same verified APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ephinta-android-matrix-apk
+          path: artifacts/android
+
+      - name: Install and launch APK on Android API ${{ matrix.api-level }}
+        uses: reactivecircus/android-emulator-runner@v2
+        timeout-minutes: 36
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-boot-timeout: 1500
+          emulator-options: -no-window -no-snapshot -no-snapshot-load -no-snapshot-save -noaudio -gpu swiftshader_indirect -no-boot-anim -memory 3072 -cores 2
+          disable-animations: true
+          script: bash eventsss123/eventsss-main/scripts/android-emulator-smoke.sh artifacts/android/app-debug.apk "${{ matrix.api-level }}"
+
+      - name: Capture Android emulator diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/android-emulator-diagnostics"
+          timeout 10s adb devices -l > "$RUNNER_TEMP/android-emulator-diagnostics/adb-devices.txt" 2>&1 || true
+          timeout 10s adb shell getprop > "$RUNNER_TEMP/android-emulator-diagnostics/getprop.txt" 2>&1 || true
+          timeout 10s adb logcat -d -t 3000 > "$RUNNER_TEMP/android-emulator-diagnostics/logcat.txt" 2>&1 || true
+
+      - name: Upload Android emulator diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-emulator-diagnostics-api-${{ matrix.api-level }}
+          path: ${{ runner.temp }}/android-emulator-diagnostics/
+          if-no-files-found: warn
+          retention-days: 14

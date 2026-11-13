@@ -1,0 +1,96 @@
+name: Publish Verified EPHINTA APK
+
+on:
+  workflow_run:
+    workflows:
+      - EPHINTA Web Checks and Android APK
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: ephinta-apk-release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified APK build artifact (optional for web-only changes)
+        id: download_apk
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ephinta-android-debug-apk
+          path: release-assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Download verified OTA web bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ephinta-web-ota-bundle
+          path: release-assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Prepare release files
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          APK="$(find release-assets -type f -name '*.apk' -print -quit)"
+          if [[ -z "$APK" || ! -s "$APK" ]]; then
+            echo "apk_available=false" >> "$GITHUB_OUTPUT"
+            echo "No Android APK artifact was produced for this web-only change; publishing the OTA bundle only."
+            exit 0
+          fi
+          cp "$APK" "release-assets/ephinta-${{ github.event.workflow_run.run_number }}.apk"
+          (cd release-assets && sha256sum "ephinta-${{ github.event.workflow_run.run_number }}.apk" > "ephinta-${{ github.event.workflow_run.run_number }}.apk.sha256")
+          echo "apk_available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Publish stable OTA bundle release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ephinta-web-latest
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          name: EPHINTA Web OTA Update
+          body: |
+            Automatically updated EPHINTA web bundle for the native Android app.
+            This OTA-only prerelease is intentionally separate from the latest APK release.
+          files: |
+            release-assets/ephinta-web-bundle.zip
+            release-assets/version.json
+          overwrite_files: true
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+
+      - name: Publish APK download release
+        if: steps.prepare.outputs.apk_available == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ephinta-apk-${{ github.event.workflow_run.id }}
+          name: EPHINTA Android Test APK - Build ${{ github.event.workflow_run.run_number }}
+          body: |
+            Download the EPHINTA Android TEST APK below.
+
+            This build passed web checks and the APK build. SHA-256 checksum is included
+            for integrity verification. This is an UNSIGNED DEBUG APK for device testing only.
+            It is not a production-signed release and must not be submitted to an app store.
+            Production-signed releases are published separately by the Ephinta Production Android APK workflow.
+          files: |
+            release-assets/ephinta-${{ github.event.workflow_run.run_number }}.apk
+            release-assets/ephinta-${{ github.event.workflow_run.run_number }}.apk.sha256
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          generate_release_notes: false

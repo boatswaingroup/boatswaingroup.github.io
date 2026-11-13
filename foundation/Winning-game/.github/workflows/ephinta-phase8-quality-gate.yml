@@ -1,0 +1,44 @@
+name: EPHINTA Phase 8 Quality Gate
+on:
+  pull_request:
+    paths:
+      - "eventsss123/eventsss-main/**"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "eventsss123/eventsss-main/**"
+      - ".github/workflows/ephinta-phase8-quality-gate.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ephinta-phase8-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: eventsss123/eventsss-main
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      DATABASE_URL_LOCAL: postgresql://ci:ci@127.0.0.1:5432/ci
+      JWT_SECRET: ephinta-ci-only-secret-not-for-production-000000000000
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173
+      APP_BASE_URL: http://localhost:4173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: eventsss123/eventsss-main/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run unit, type, API policy and KYC research checks
+        run: npm run check
+      - name: Run frontend design-quality audit
+        run: npm run design:audit -w apps/web
