@@ -70,3 +70,12 @@ The active implementation is maintained on `project/boatswain-platform-foundatio
 - Expanded Chromium smoke coverage for the filters, empty state and mobile navigation.
 
 The public GitHub Pages URL still serves the older preview. These changes are on the development branch only and are not live.
+
+
+## Property-detail and purchase-planning journey
+- Catalogue cards now open an in-app property-detail view with the reference listing's displayed title, location, size, price range, status and source-page link.
+- Each displayed reference deposit is labelled unverified and is not a payment request or approved company quotation.
+- The detail view includes a buyer due-diligence checklist covering survey references, title review, boundaries/access, written price and instalment terms, allocation/refund conditions and official receipts.
+- An illustrative planner calculates a remaining balance and equal monthly scenario from a buyer-entered written total/deposit. It rejects deposits greater than the total and does not assume an approved rate, fees or contractual terms.
+- The property-specific enquiry CTA pre-fills the selected property and asks the team for verified inventory, title documents and written payment terms. It does not reserve a plot or collect money.
+- Chromium smoke coverage verifies the detail navigation, warning, planner calculation/validation, prefilled enquiry, back-to-catalogue flow and the existing catalogue/mobile checks.
