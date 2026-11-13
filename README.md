@@ -93,3 +93,7 @@ The public GitHub Pages URL still serves the older preview. These changes are on
 - Added rate-limited, email-based password reset with generic account-existence responses, 30-minute single-use tokens stored only as hashes, password update and revocation of all active sessions.
 - SMTP and reset URL settings are deployment-only environment variables; no email credentials are committed. Password recovery is not live until a verified SMTP sender and HTTPS customer-site URL are configured.
 - The customer account modal now supports requesting a reset link and completing the reset from the emailed link. Browser and API tests use mocked email delivery.
+
+
+## Password recovery
+The account modal now includes forgot-password and reset-link journeys. The backend stores only hashed one-time reset tokens, applies a 30-minute expiry and rate limit, uses generic account-existence responses, and revokes all active sessions after a successful password change. SMTP and the HTTPS reset URL must be configured in the hosting provider's environment before real email delivery is enabled. Automated browser/API tests use a mocked sender and do not send emails.
