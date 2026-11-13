@@ -141,13 +141,11 @@ function openPropertyDetail(card){
  document.getElementById('planResult').textContent='Enter the total price and deposit from your written offer to see an illustrative balance and monthly amount.';
  propertiesSection.hidden=true;
  propertyDetail.hidden=false;
- history.replaceState(null,'','#property-detail');
  propertyDetail.scrollIntoView({behavior:'smooth',block:'start'});
  detailTitle.focus({preventScroll:true});
 }
 function closePropertyDetail(){
  propertyDetail.hidden=true;propertiesSection.hidden=false;selectedProperty=null;
- history.replaceState(null,'',location.pathname+location.search);
  propertiesSection.scrollIntoView({behavior:'smooth',block:'start'});
 }
 document.querySelectorAll('.property a[href*="/properties/"]').forEach(link=>link.addEventListener('click',event=>{
