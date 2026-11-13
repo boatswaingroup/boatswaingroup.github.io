@@ -163,3 +163,21 @@ The authenticated customer dashboard now reads the existing customer-scoped `GET
 - The ledger entries attached to each plan, including direction, description, date and exact Naira formatting from integer kobo values.
 
 The UI distinguishes between no approved plan and no provider-verified ledger entries. It does not create payments, mark instalments paid, or issue receipts. The API integration test now checks that the customer payment-plan response includes the schedule and ledger collection, while remaining scoped to that customer.
+
+
+## Secure customer password recovery milestone
+
+The customer account journey now includes a forgot-password request form and a reset-link completion form.
+
+### Security behaviour
+- Reset requests are rate-limited to five per hour per client IP, in addition to the general authentication rate limit.
+- The request endpoint returns the same generic `202` response for known and unknown email addresses and applies a minimum response duration to reduce account enumeration by timing.
+- Reset tokens are generated from 32 cryptographically random bytes. Only a SHA-256 hash is stored in PostgreSQL; the raw token is delivered by email and never logged or returned by the API.
+- Tokens expire after 30 minutes, only one unused token per customer remains valid, and each token can be consumed once.
+- Successful reset updates the password hash and revokes all active sessions in the same database transaction.
+- Invalid, expired and reused links receive the same generic invalid-link response.
+- SMTP delivery is configured through environment variables. If the email service is not configured or delivery fails, the API does not expose the token or whether the account exists; it removes the undelivered token and returns the generic request response.
+- Automated tests inject a fake sender. They do not send real email.
+
+### Activation requirements
+Set `PASSWORD_RESET_URL` to the deployed HTTPS customer website and configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, `SMTP_USER` and `SMTP_PASSWORD` in the hosting provider's secret environment settings. No SMTP credentials belong in GitHub source files or chat. Until these settings are supplied, the reset UI remains a code-complete but non-delivering integration.
