@@ -58,13 +58,12 @@ jobs:
           assert len(audit.hrefs) >= 20, f"Expected property/contact navigation links, found {len(audit.hrefs)}"
           assert any("boatswainproperties.com" in href for href in audit.hrefs), "Missing official website links"
           assert any("wa.me/2348033635755" in href for href in audit.hrefs), "Missing WhatsApp enquiry link"
+          assert any("tel:+2348033635755" in href for href in audit.hrefs), "Missing phone contact link"
           visible = " ".join(audit.text).lower()
-          for required in ["greenfarm settlement", "moniya gateway estate", "lagos-ibadan expressway plots", "boatswain royal estate", "ago-are commercial plots", "ona ara residential plots"]:
-              assert required in visible, f"Missing catalogue listing: {required}"
-          for required in ["08033635755", "boatswainproperties@gmail.com", "rc 942549"]:
-              assert required in visible, f"Missing company contact/identity: {required}"
+          for required in ["greenfarm settlement", "moniya gateway estate", "lagos-ibadan expressway plots", "boatswain royal estate", "ago-are commercial plots", "ona ara residential plots", "boatswainproperties@gmail.com", "rc 942549"]:
+              assert required in visible, f"Missing catalogue or company detail: {required}"
           for forbidden in ["estate image to be added", "division three", "coming soon placeholder"]:
               assert forbidden not in source.lower(), f"Placeholder content remains: {forbidden}"
           assert re.search(r"addEventListener\('input',filter\)", source), "Property filtering handler is missing"
-          print(f"PASS: {audit.cards} property cards, {len(audit.ids)} unique IDs, {len(audit.hrefs)} links.")
+          print(f"PASS: {audit.cards} property cards, {len(audit.ids)} IDs, {len(audit.hrefs)} links.")
           PY
