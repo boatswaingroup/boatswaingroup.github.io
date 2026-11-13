@@ -97,3 +97,9 @@ The public GitHub Pages URL still serves the older preview. These changes are on
 
 ## Password recovery
 The account modal now includes forgot-password and reset-link journeys. The backend stores only hashed one-time reset tokens, applies a 30-minute expiry and rate limit, uses generic account-existence responses, and revokes all active sessions after a successful password change. SMTP and the HTTPS reset URL must be configured in the hosting provider's environment before real email delivery is enabled. Automated browser/API tests use a mocked sender and do not send emails.
+
+
+## API deployment preparation
+- Render Blueprint now includes the SMTP and HTTPS reset URL environment keys required for password recovery.
+- See [API deployment readiness](docs/API_DEPLOYMENT_READINESS.md) for the staging/production checklist, secure secret configuration, CORS requirements and release gates.
+- The Blueprint has not been applied; no Render services, databases, email credentials or payment provider have been provisioned.
