@@ -333,7 +333,7 @@ async function loadEstatePlots(slug){
 document.getElementById('inventoryEstate')?.addEventListener('change',event=>loadEstatePlots(event.target.value));
 
 document.getElementById('logoutButton').addEventListener('click',async()=>{const token=accessToken;document.getElementById('logoutButton').disabled=true;try{if(token&&apiBase)await fetch(apiBase+'/api/auth/logout',{method:'POST',headers:{Authorization:'Bearer '+token}})}catch{}finally{accessToken=null;currentCustomer=null;document.getElementById('logoutButton').disabled=false;showAuth('login');authMessage('You have signed out securely.')}});
-const resetTokenFromUrl=new URLSearchParams(window.location.search).get('passwordResetToken');
+const resetTokenFromUrl=new URLSearchParams(window.location.hash.slice(1)).get('passwordResetToken');
 if(resetTokenFromUrl){document.getElementById('passwordResetToken').value=resetTokenFromUrl;openModal();if(apiBase){showAuth('reset-confirm');authMessage('Your reset link is ready. Choose a new password below.')}else{notify('Password recovery is not connected on this preview yet.')}}
 document.getElementById('year').textContent=new Date().getFullYear();
 </script>
