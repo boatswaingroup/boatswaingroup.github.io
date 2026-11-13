@@ -112,3 +112,16 @@ Some browser observations and extracted page text differed on whether property c
 ## Release decision
 
 **Do not merge or deploy this PR yet.** Keep it as a draft until the above data, security, commercial and operational gates are satisfied and the new branch has passed the expanded browser and CI checks.
+
+
+## Final preview and regression verification
+
+The third-party HTML preview services did not consistently report the current DOM: some runs returned stale or conflicting selector names. The authoritative branch HTML at the tested commit contains the responsive menu toggle, empty-result element, account modal, and min/max price inputs. The latest GitHub Actions run provides the reliable interaction check:
+
+- Chromium smoke test passed, including mobile navigation open/close.
+- Search, property type, location, availability, minimum/maximum price, price sorting, clear filters and empty-state assertions passed.
+- API build and PostgreSQL integration tests passed.
+- The public reference-site crawl completed successfully.
+- Winning-game foundation compatibility review passed.
+
+TinyFish was used for the reference-site and preview inspections, but its preview-service selector extraction is treated as advisory where it conflicts with source and Playwright regression evidence.
