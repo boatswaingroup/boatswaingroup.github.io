@@ -79,3 +79,11 @@ The public GitHub Pages URL still serves the older preview. These changes are on
 - An illustrative planner calculates a remaining balance and equal monthly scenario from a buyer-entered written total/deposit. It rejects deposits greater than the total and does not assume an approved rate, fees or contractual terms.
 - The property-specific enquiry CTA pre-fills the selected property and asks the team for verified inventory, title documents and written payment terms. It does not reserve a plot or collect money.
 - Chromium smoke coverage verifies the detail navigation, warning, planner calculation/validation, prefilled enquiry, back-to-catalogue flow and the existing catalogue/mobile checks.
+
+
+## Customer payment-plan dashboard
+- Authenticated customers now have a dashboard section for approved payment plans, instalment due dates/statuses and the ledger entries associated with each plan.
+- The display labels the deposit as the amount required by the plan, not as an amount already paid.
+- Ledger credits/debits are formatted from integer kobo values without converting through floating-point arithmetic.
+- Empty states distinguish between no approved plan and no provider-verified payment entries.
+- This is a read-only account statement view. It does not initiate payments or issue receipts; only provider-verified ledger entries are shown as recorded payments.
