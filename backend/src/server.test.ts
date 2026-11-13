@@ -45,7 +45,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.installment.deleteMany({ where: { paymentPlan: { reservation: { plotId } } } });
   await prisma.paymentPlan.deleteMany({ where: { reservation: { plotId } } });
-  await prisma.reservation.deleteMany({ where: { OR: [{ plotId }, { plot: { estateId: managedEstateId } }] } });
+  await prisma.reservation.deleteMany({ where: { OR: [{ plotId }, { plot: { estateId } }, { plot: { estateId: managedEstateId } }] } });
   if (managedEstateId) await prisma.plot.deleteMany({ where: { estateId: managedEstateId } });
   if (managedEstateId) await prisma.estate.deleteMany({ where: { id: managedEstateId } });
   await prisma.enquiry.deleteMany({ where: { email: { contains: suffix } } });
