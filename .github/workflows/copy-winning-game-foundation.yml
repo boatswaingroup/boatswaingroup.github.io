@@ -1,0 +1,40 @@
+name: Copy Winning Game foundation
+
+on:
+  push:
+    branches:
+      - copy-winning-game-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  copy-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out destination repository
+        uses: actions/checkout@v4
+        with:
+          ref: copy-winning-game-foundation
+          fetch-depth: 0
+      - name: Clone and copy the complete source repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/demtaiwo1-eng/Winning-game-.git /tmp/winning-game
+          mkdir -p foundation/Winning-game
+          tar --exclude=.git -C /tmp/winning-game -cf - . | tar -C foundation/Winning-game -xf -
+      - name: Commit the copied foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add foundation/Winning-game
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Copy Winning-game repository into foundation"
+          git push origin HEAD:copy-winning-game-foundation
