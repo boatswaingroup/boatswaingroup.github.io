@@ -15,6 +15,8 @@ const required = [
   'boatswainproperties@gmail.com',
   'media/boatlogo.png',
   'locationFilter',
+  'minPrice',
+  'maxPrice',
   'availabilityFilter',
   'menuToggle',
   'resetFilters',
