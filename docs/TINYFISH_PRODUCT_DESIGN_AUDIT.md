@@ -125,3 +125,20 @@ The third-party HTML preview services did not consistently report the current DO
 - Winning-game foundation compatibility review passed.
 
 TinyFish was used for the reference-site and preview inspections, but its preview-service selector extraction is treated as advisory where it conflicts with source and Playwright regression evidence.
+
+
+## Property-detail and purchase-planning milestone
+
+The development branch now includes an in-app detail view launched from each of the six catalogue cards. It displays the source-listed name, location, size, price range and availability label, with a direct link to the corresponding reference property page. The deposit amounts displayed from the reference are explicitly labelled unverified and are not treated as company-approved payment terms.
+
+The detail view also includes:
+- A buyer due-diligence checklist (survey reference, title/root-of-title review, boundaries and access, written quotation, allocation/refund terms, approved payment channel and receipt).
+- An illustrative calculator. A sample input of ₦5,000,000 total, ₦500,000 deposit and six months yields approximately ₦750,000 per month. A deposit greater than the total is rejected. This is a mathematical example only, not a quote or contract.
+- A property-specific enquiry message requesting verified inventory, title documents, final price, deposit, fees and allocation/payment terms.
+- A return-to-catalogue action.
+
+### Verification and preview caveat
+
+GitHub Actions passed the API build and integration tests, static checks, Chromium smoke tests and reference-site crawl on the validation commit. The Chromium smoke test explicitly covers the property detail, deposit disclaimer, planner arithmetic and validation, enquiry prefill, and return-to-catalogue journey.
+
+A TinyFish inspection of the third-party HTML preview service returned the older source property-detail page after following an external link; it did not validate the in-app detail view. Treat that browser result as a preview-navigation/cache mismatch, not as evidence that the new feature is absent. The source branch and CI smoke test are authoritative for this milestone. A separate full visual/mobile browser review of this new in-app detail view remains a follow-up quality gate.
