@@ -124,6 +124,9 @@ model Reservation {
   expiresAt   DateTime
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+  paymentPlan PaymentPlan?
+  payments    Payment[]
+  ledgerEntries LedgerEntry[]
   @@index([plotId, status, expiresAt])
   @@index([customerId, createdAt])
 }
