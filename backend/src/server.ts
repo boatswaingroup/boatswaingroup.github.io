@@ -24,7 +24,7 @@ app.use(express.json({ limit: '32kb' }));
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }));
 app.use('/api/enquiries', rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }));
 
-type AuthUser = { id: string; role: CustomerRole };
+type AuthUser = { id: string; role: CustomerRole; sessionId: string };
 type AuthedRequest = Request & { user?: AuthUser };
 const asyncRoute = (fn: (req: AuthedRequest, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => Promise.resolve(fn(req as AuthedRequest, res)).catch(next);
@@ -32,16 +32,25 @@ const asyncRoute = (fn: (req: AuthedRequest, res: Response) => Promise<unknown>)
 function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   const token = req.header('authorization')?.replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
+  let decoded: jwt.JwtPayload;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { issuer: 'boatswain-property-api', audience: 'boatswain-web' }) as jwt.JwtPayload;
-    if (typeof decoded.sub !== 'string' || !Object.values(CustomerRole).includes(decoded.role as CustomerRole)) {
-      return res.status(401).json({ error: 'Invalid access token' });
-    }
-    req.user = { id: decoded.sub, role: decoded.role as CustomerRole };
-    next();
+    decoded = jwt.verify(token, process.env.JWT_SECRET!, { issuer: 'boatswain-property-api', audience: 'boatswain-web' }) as jwt.JwtPayload;
   } catch {
     return res.status(401).json({ error: 'Invalid or expired access token' });
   }
+  if (typeof decoded.sub !== 'string' || typeof decoded.sid !== 'string') {
+    return res.status(401).json({ error: 'Invalid access token' });
+  }
+  void prisma.session.findUnique({
+    where: { id: decoded.sid },
+    include: { customer: { select: { id: true, role: true } } }
+  }).then(session => {
+    if (!session || session.customerId !== decoded.sub || session.revokedAt || session.expiresAt <= new Date()) {
+      return res.status(401).json({ error: 'Session is no longer active' });
+    }
+    req.user = { id: session.customer.id, role: session.customer.role, sessionId: session.id };
+    next();
+  }).catch(next);
 }
 function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
   if (!req.user || req.user.role !== CustomerRole.ADMIN) return res.status(403).json({ error: 'Administrator access required' });
@@ -91,6 +100,15 @@ const paymentPlanCreateSchema = z.object({
   }
 });
 
+async function issueSession(customer: { id: string; role: CustomerRole; fullName: string; email: string }) {
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  const session = await prisma.session.create({ data: { customerId: customer.id, expiresAt } });
+  const accessToken = jwt.sign({ sid: session.id }, process.env.JWT_SECRET!, {
+    subject: customer.id, expiresIn: '1h', issuer: 'boatswain-property-api', audience: 'boatswain-web'
+  });
+  return { customer: { id: customer.id, fullName: customer.fullName, email: customer.email, role: customer.role }, accessToken, tokenType: 'Bearer', expiresIn: 3600 };
+}
+
 const enquirySchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254),
@@ -114,8 +132,8 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
     const customer = await prisma.customer.create({ data: {
       fullName: parsed.data.fullName, email: parsed.data.email, phone: parsed.data.phone, passwordHash
     }, select: { id: true, fullName: true, email: true, role: true } });
-    const token = jwt.sign({ role: customer.role }, process.env.JWT_SECRET!, { subject: customer.id, expiresIn: '1h', issuer: 'boatswain-property-api', audience: 'boatswain-web' });
-    return res.status(201).json({ customer, accessToken: token, tokenType: 'Bearer', expiresIn: 3600 });
+    const sessionResponse = await issueSession(customer);
+    return res.status(201).json(sessionResponse);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ error: 'An account with this email already exists' });
     throw error;
@@ -127,8 +145,23 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid login details' });
   const customer = await prisma.customer.findUnique({ where: { email: parsed.data.email } });
   if (!customer || !(await bcrypt.compare(parsed.data.password, customer.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect' });
-  const accessToken = jwt.sign({ role: customer.role }, process.env.JWT_SECRET!, { subject: customer.id, expiresIn: '1h', issuer: 'boatswain-property-api', audience: 'boatswain-web' });
-  return res.json({ customer: { id: customer.id, fullName: customer.fullName, email: customer.email, role: customer.role }, accessToken, tokenType: 'Bearer', expiresIn: 3600 });
+  return res.json(await issueSession(customer));
+}));
+
+app.post('/api/auth/logout', authenticate, asyncRoute(async (req, res) => {
+  await prisma.session.updateMany({
+    where: { id: req.user!.sessionId, customerId: req.user!.id, revokedAt: null },
+    data: { revokedAt: new Date() }
+  });
+  return res.json({ ok: true, message: 'This session has been revoked' });
+}));
+
+app.post('/api/auth/logout-all', authenticate, asyncRoute(async (req, res) => {
+  const result = await prisma.session.updateMany({
+    where: { customerId: req.user!.id, revokedAt: null },
+    data: { revokedAt: new Date() }
+  });
+  return res.json({ ok: true, revokedSessions: result.count });
 }));
 
 app.get('/api/me', authenticate, asyncRoute(async (req, res) => {
