@@ -10,7 +10,7 @@ const required = [
   'Boatswain Royal Estate, Ido',
   'Ago-Are Commercial Plots',
   'Ona Ara Residential Plots',
-  'property-specific deposit',
+  'does not publish a verified deposit amount',
   'wa.me/2348033635755',
   'boatswainproperties@gmail.com',
   'media/boatlogo.png',
