@@ -96,6 +96,11 @@ try {
         installments: [{ sequenceNumber: 1, amountKobo: '75000000', dueAt: '2026-12-13T00:00:00.000Z', status: 'DUE' }],
         ledgerEntries: [{ description: 'Verified deposit', entryType: 'DEPOSIT', direction: 'CREDIT', amountKobo: '50000000', createdAt: '2026-11-13T12:00:00.000Z' }]
       }] };
+    } else if (url.pathname === '/api/auth/password-reset/request' && method === 'POST') {
+      payload = { message: 'If an account with that email exists, a reset link will be sent.' };
+      return route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify(payload) });
+    } else if (url.pathname === '/api/auth/password-reset/confirm' && method === 'POST') {
+      payload = { message: 'Your account access has been restored.' };
     } else if (url.pathname === '/api/auth/logout' && method === 'POST') {
       payload = { ok: true, message: 'This session has been revoked' };
     } else {
@@ -116,8 +121,20 @@ try {
   await dashboardPage.locator('#logoutButton').click();
   await dashboardPage.waitForFunction(() => document.getElementById('authMessage')?.textContent.includes('signed out securely'));
   if (!(await dashboardPage.locator('#authMessage').innerText()).includes('signed out securely')) throw new Error('Customer dashboard sign-out did not complete');
+  await dashboardPage.locator('#forgotPasswordButton').click();
+  if (!(await dashboardPage.locator('#passwordResetRequestForm').isVisible())) throw new Error('Forgot-password action did not open the reset request form');
+  await dashboardPage.locator('#passwordResetRequestForm [name="email"]').fill('customer@example.test');
+  await dashboardPage.locator('#passwordResetRequestForm button[type="submit"]').click();
+  await dashboardPage.waitForFunction(() => document.getElementById('authMessage')?.textContent.includes('If an account with that email exists'));
+  await dashboardPage.goto(pathToFileURL(path.resolve('index.html')).href + '?passwordResetToken=' + 'a'.repeat(64));
+  if (!(await dashboardPage.locator('#passwordResetConfirmForm').isVisible())) throw new Error('Reset-link URL did not open the new-credential form');
+  await dashboardPage.locator('#resetNewPassword').fill('sample-value-123456');
+  await dashboardPage.locator('#resetConfirmPassword').fill('sample-value-123456');
+  await dashboardPage.locator('#passwordResetConfirmForm button[type="submit"]').click();
+  await dashboardPage.waitForFunction(() => document.getElementById('authMessage')?.textContent.includes('restored'));
+  if (!(await dashboardPage.locator('#loginForm').isVisible())) throw new Error('Successful reset did not return the customer to sign-in');
   await dashboardPage.close();
-  console.log('Browser smoke test passed: catalogue filters, property details, payment planner, tailored enquiry, mobile navigation, WhatsApp handoff and authenticated payment-plan/ledger dashboard rendering.');
+  console.log('Browser smoke test passed: catalogue, property detail, payment planner, customer statement, forgot-password request and reset-link completion.');
 } finally {
   await browser.close();
 }
