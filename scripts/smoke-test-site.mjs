@@ -12,6 +12,24 @@ try {
   await page.locator('#search').fill('Moniya');
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Property search did not filter to Moniya');
   await page.locator('#search').fill('');
+  await page.locator('.property').filter({ hasText: 'Boatswain Royal Estate, Ido' }).locator('a').first().click();
+  if (!(await page.locator('#property-detail').isVisible())) throw new Error('Property detail view did not open');
+  if (!(await page.locator('#detailTitle').innerText()).includes('Boatswain Royal Estate')) throw new Error('Property detail title was not populated');
+  if (!(await page.locator('#detailDepositNotice').innerText()).includes('unverified reference information')) throw new Error('Reference deposit must be clearly marked unverified');
+  await page.locator('#planTotal').fill('5000000');
+  await page.locator('#planDeposit').fill('500000');
+  await page.locator('#planMonths').selectOption('6');
+  await page.locator('#paymentPlanner button[type="submit"]').click();
+  if (!(await page.locator('#planResult').innerText()).includes('₦750,000')) throw new Error('Illustrative payment planner calculated an incorrect monthly amount');
+  await page.locator('#planDeposit').fill('6000000');
+  await page.locator('#paymentPlanner button[type="submit"]').click();
+  if (!(await page.locator('#planResult').innerText()).includes('cannot exceed')) throw new Error('Payment planner did not reject a deposit greater than the total');
+  await page.locator('#detailEnquire').click();
+  if (!(await page.locator('#accountModal').isVisible())) throw new Error('Property enquiry did not open the customer enquiry modal');
+  if (!(await page.locator('#accountForm [name="message"]').inputValue()).includes('Boatswain Royal Estate')) throw new Error('Property-specific enquiry message was not populated');
+  await page.locator('#accountModal [data-close]').click();
+  await page.locator('#backToProperties').click();
+  if (!(await page.locator('#properties').isVisible())) throw new Error('Back-to-properties action did not return to catalogue');
   await page.locator('#type').selectOption('Agricultural land');
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Property type filter did not return one agricultural listing');
   await page.locator('#type').selectOption('');
@@ -51,7 +69,7 @@ try {
   await page.locator('#accountForm button[type="submit"]').click();
   const openedUrl = await page.evaluate(() => window.__boatswainOpenedUrl || '');
   if (!openedUrl.startsWith('https://wa.me/2348033635755?text=')) throw new Error('WhatsApp enquiry handoff did not generate the expected destination URL');
-  console.log('Browser smoke test passed: search, type/location/availability/price filters, sort order, reset, empty state, mobile navigation, enquiry-only account state and WhatsApp handoff.');
+  console.log('Browser smoke test passed: catalogue filters, sort/reset, property detail navigation, unverified deposit disclosure, payment estimate and validation, property-specific enquiry, mobile navigation and WhatsApp handoff.');
 } finally {
   await browser.close();
 }
