@@ -21,7 +21,7 @@ const required = [
   'paymentPlanner',
   'detailEnquire',
   'Buyer due diligence',
-  'unverified reference information'
+  'unverified reference information',
   'availabilityFilter',
   'menuToggle',
   'resetFilters',
