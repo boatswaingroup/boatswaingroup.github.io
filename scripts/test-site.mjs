@@ -32,7 +32,6 @@ const required = [
   'passwordResetToken',
   '/api/auth/password-reset/request',
   '/api/auth/password-reset/confirm',
-  'passwordResetEmailSender',
   'one-time',
   'Buyer due diligence',
   'unverified reference information',
