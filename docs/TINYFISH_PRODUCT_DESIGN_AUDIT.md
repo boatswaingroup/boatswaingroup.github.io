@@ -90,7 +90,7 @@ Some browser observations and extracted page text differed on whether property c
 ## Changes implemented in the PR branch
 
 - Added a keyboard-accessible mobile navigation toggle and close-on-navigation behaviour.
-- Added location and availability filters alongside search, property type and price sorting.
+- Added location, availability and minimum/maximum price filters alongside search and property type; fixed displayed sort ordering and added a clear-filters action.
 - Added result count announcements and a no-results state.
 - Added property imagery from the existing Boatswain Properties public media directory, with descriptive alt text and lazy loading.
 - Added a stronger catalogue disclosure that these are reference examples, not verified live inventory.
