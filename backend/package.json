@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "db:generate": "prisma generate",
     "db:deploy": "prisma migrate deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "admin:provision": "tsx scripts/provision-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
