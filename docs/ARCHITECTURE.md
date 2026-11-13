@@ -33,3 +33,14 @@ Use pull requests, CI for type/lint/test/build, dependency and secret scanning, 
 
 ## Foundation compatibility results (11 November 2026)
 The isolated CI workflow successfully installed the source lockfile, ran the API checks, web tests and KYC self-test, built the web client and compiled the API. This establishes that the source snapshot can pass its current automated checks in CI; it does not establish that its event-management domain is suitable as the Boatswain property backend. The web build emits a large JavaScript chunk warning (about 814 kB before gzip). A dependency audit also reported 9 advisories (2 low, 4 moderate, 2 high and 1 critical); review and remediate these before any production reuse.
+
+
+## Payment and instalment accounting foundation (13 November 2026)
+
+The API database now has the initial accounting entities: payment plans tied one-to-one to a reservation, dated instalments, provider payment records, idempotent provider-event records, and an immutable ledger. Monetary values are stored as integer kobo (BIGINT), never floating-point naira. The migration adds positive-amount checks, unique idempotency/provider references, and a PostgreSQL trigger that rejects updates/deletes to ledger rows; corrections must be compensating entries.
+
+This is a data-model foundation only. No payment initialization endpoint, gateway SDK, webhook endpoint, customer charge, receipt issuance, or live collection is enabled by this change. A payment is not considered paid based on a browser redirect; future confirmation must verify the provider's signed webhook and/or server-to-server transaction lookup, then atomically record the payment event, payment state and ledger entry.
+
+The ₦350,000 figure from the initial brief is 35,000,000 kobo. It is not hard-coded as a universal deposit: each plan stores its own depositDueKobo, and a staff-approved business rule must decide whether it applies to each estate/product. Total price, deposit, instalment count and interval must be agreed before a plan is issued. No provider is selected or activated; Paystack and Flutterwave remain candidates pending merchant-account ownership, credentials, settlement and refund procedures, and explicit approval.
+
+Before enabling any gateway, add sandbox integration tests for signature verification, duplicate and out-of-order events, amount/currency/reference mismatches, failed and refunded payments, replay attacks, concurrent webhook delivery, ledger reconciliation and customer ownership. Never store card PAN, CVV, PIN or OTP data.
