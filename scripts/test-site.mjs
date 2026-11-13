@@ -17,6 +17,11 @@ const required = [
   'locationFilter',
   'minPrice',
   'maxPrice',
+  'property-detail',
+  'paymentPlanner',
+  'detailEnquire',
+  'buyer due diligence',
+  'unverified reference information'
   'availabilityFilter',
   'menuToggle',
   'resetFilters',
