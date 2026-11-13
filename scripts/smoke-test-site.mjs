@@ -126,7 +126,7 @@ try {
   await dashboardPage.locator('#passwordResetRequestForm [name="email"]').fill('customer@example.test');
   await dashboardPage.locator('#passwordResetRequestForm button[type="submit"]').click();
   await dashboardPage.waitForFunction(() => document.getElementById('authMessage')?.textContent.includes('If an account with that email exists'));
-  await dashboardPage.goto(pathToFileURL(path.resolve('index.html')).href + '?passwordResetToken=' + 'a'.repeat(64));
+  await dashboardPage.goto(pathToFileURL(path.resolve('index.html')).href + '#passwordResetToken=' + 'a'.repeat(64));
   if (!(await dashboardPage.locator('#passwordResetConfirmForm').isVisible())) throw new Error('Reset-link URL did not open the new-credential form');
   await dashboardPage.locator('#resetNewPassword').fill('sample-value-123456');
   await dashboardPage.locator('#resetConfirmPassword').fill('sample-value-123456');
