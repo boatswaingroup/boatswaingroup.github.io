@@ -26,3 +26,13 @@ A separate Node/Express + PostgreSQL API for customer accounts, public estate/pl
 This is an initial backend foundation, not a production payment system. It deliberately does not collect the requested ₦350,000 deposit or mark any plot as sold. Before live use, add email/phone verification, password reset and refresh-token/session revocation, audit logging, privacy/retention controls, CSRF strategy if cookies are adopted, reservation expiry worker, staff account provisioning, payment-provider integration with signed webhook verification, ledger and receipt generation, database backups, monitoring, security review and end-to-end tests. Create verified estate and plot records only after the business supplies approved plot inventory and legal documentation.
 
 Never commit `.env`, credentials, customer data or real payment secrets.
+
+
+## Customer password recovery
+- `POST /api/auth/password-reset/request` accepts an email address and always returns the same 202 response whether or not an account exists.
+- For an existing account, the API creates a cryptographically random 32-byte token, stores only its SHA-256 hash, invalidates previous unused reset tokens and emails a one-time link with a 30-minute expiry.
+- `POST /api/auth/password-reset/confirm` validates the token, updates the password hash, marks the token used and revokes all active customer sessions in one database transaction.
+- Reset requests are rate-limited. Invalid, expired and reused tokens are rejected.
+- Configure `PASSWORD_RESET_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and the SMTP credentials in the deployment environment. Do not commit SMTP credentials. Use HTTPS for the reset URL outside local development.
+- If email delivery is not configured or fails, the endpoint does not expose the reset token or disclose whether the email exists. The customer receives the same generic response; the reset token is removed.
+- Automated tests inject a fake email sender. They never send real customer emails.
