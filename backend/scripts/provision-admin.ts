@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  if (!value) throw new Error(\`Missing required environment variable: \${name}\`);
   return value;
 }
 
@@ -21,7 +21,7 @@ async function main() {
   const password = required('ADMIN_PASSWORD');
 
   if (fullName.length < 2 || fullName.length > 120) throw new Error('ADMIN_FULL_NAME must be 2–120 characters.');
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) throw new Error('ADMIN_EMAIL must be a valid email address.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new Error('ADMIN_EMAIL must be a valid email address.');
   if (phone.length < 7 || phone.length > 24) throw new Error('ADMIN_PHONE must be 7–24 characters.');
   if (password.length < 16 || password.length > 128) throw new Error('ADMIN_PASSWORD must be 16–128 characters.');
 
@@ -36,13 +36,13 @@ async function main() {
     select: { id: true, fullName: true, email: true, role: true, createdAt: true }
   });
 
-  process.stdout.write(`Administrator created: ${admin.email} (id: ${admin.id})\\n`);
-  process.stdout.write('Store the credentials securely and remove the bootstrap environment variables.\\n');
+  process.stdout.write(\`Administrator created: \${admin.email} (id: \${admin.id})\n\`);
+  process.stdout.write('Store the credentials securely and remove the bootstrap environment variables.\n');
 }
 
 main()
   .catch(error => {
-    process.stderr.write(`Administrator provisioning failed: ${error instanceof Error ? error.message : 'Unknown error'}\\n`);
+    process.stderr.write(\`Administrator provisioning failed: \${error instanceof Error ? error.message : 'Unknown error'}\n\`);
     process.exitCode = 1;
   })
   .finally(async () => {
