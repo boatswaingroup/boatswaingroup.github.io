@@ -24,6 +24,9 @@ try {
   await page.locator('#minPrice').fill('2500000');
   if (await page.locator('.property:visible').count() !== 4) throw new Error('Minimum price filter did not return four matching listings');
   await page.locator('#minPrice').fill('');
+  await page.locator('#maxPrice').fill('2500000');
+  if (await page.locator('.property:visible').count() !== 2) throw new Error('Maximum price filter did not return two matching listings');
+  await page.locator('#maxPrice').fill('');
   await page.locator('#sort').selectOption('high');
   if (!(await page.locator('.property:visible h3').first().innerText()).includes('GreenFarm')) throw new Error('Price sorting did not reorder the cards');
   await page.locator('#resetFilters').click();
@@ -48,7 +51,7 @@ try {
   await page.locator('#accountForm button[type="submit"]').click();
   const openedUrl = await page.evaluate(() => window.__boatswainOpenedUrl || '');
   if (!openedUrl.startsWith('https://wa.me/2348033635755?text=')) throw new Error('WhatsApp enquiry handoff did not generate the expected destination URL');
-  console.log('Browser smoke test passed: search, type/location/availability filters, empty state, mobile navigation, registration-interest form and WhatsApp handoff.');
+  console.log('Browser smoke test passed: search, type/location/availability/price filters, sort order, reset, empty state, mobile navigation, enquiry-only account state and WhatsApp handoff.');
 } finally {
   await browser.close();
 }
