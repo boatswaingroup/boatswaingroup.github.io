@@ -44,3 +44,7 @@ This is a data-model foundation only. No payment initialization endpoint, gatewa
 The ₦350,000 figure from the initial brief is 35,000,000 kobo. It is not hard-coded as a universal deposit: each plan stores its own depositDueKobo, and a staff-approved business rule must decide whether it applies to each estate/product. Total price, deposit, instalment count and interval must be agreed before a plan is issued. No provider is selected or activated; Paystack and Flutterwave remain candidates pending merchant-account ownership, credentials, settlement and refund procedures, and explicit approval.
 
 Before enabling any gateway, add sandbox integration tests for signature verification, duplicate and out-of-order events, amount/currency/reference mismatches, failed and refunded payments, replay attacks, concurrent webhook delivery, ledger reconciliation and customer ownership. Never store card PAN, CVV, PIN or OTP data.
+
+
+### Payment-plan API boundary
+Administrator-only `POST /api/staff/reservations/:reservationId/payment-plan` creates a schedule only for a currently active reservation with an approved plot price. The schedule is calculated server-side in integer kobo; the remainder is distributed across the requested instalment count without losing kobo. `GET /api/me/payment-plans` returns only the authenticated customer's plans, instalments and ledger rows. These endpoints create a proposed schedule, not a payment request or proof of payment. No customer-facing collection endpoint exists.
