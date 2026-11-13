@@ -1,0 +1,114 @@
+name: Safe non-main branch cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type DELETE_ALL_NON_MAIN_BRANCHES to confirm the cleanup
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: inputs.confirm == 'DELETE_ALL_NON_MAIN_BRANCHES'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all integration PRs are merged and no PR remains open
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          open_count="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number --jq 'length')"
+          if [ "$open_count" -ne 0 ]; then
+            echo "Refusing cleanup: $open_count pull request(s) are still open."
+            gh pr list --repo "$GITHUB_REPOSITORY" --state open
+            exit 1
+          fi
+
+          required_prs=(68 76 81 83 84 108 109 114 115 116 123 124)
+          for pr in "${required_prs[@]}"; do
+            merged_at="$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json mergedAt --jq '.mergedAt // ""')"
+            if [ -z "$merged_at" ]; then
+              echo "Refusing cleanup: required integration PR #$pr is not merged."
+              exit 1
+            fi
+          done
+          echo "All required integration PRs are merged and no PR is open."
+
+      - name: Checkout branch graph for merge-equivalence checks
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete only fully integrated non-main branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          main_tree="$(git rev-parse 'refs/remotes/origin/main^{tree}')"
+          branches=(
+            "feature/ephinta-device-security-20261108"
+            "feature/ephinta-bytid-kyc-20261108"
+            "fix/ephinta-production-signing"
+            "fix/ephinta-registration-planner-and-youtube-oauth"
+            "integration/ephinta-planner-music-rebased-20261108"
+            "integration/ephinta-security-bytid-rebased-20261108"
+            "integration/ephinta-planner-music-current-main-20261108"
+            "integration/ephinta-release-backup-rebased-20261108"
+            "integration/android-signed-release-fingerprint-20261108"
+            "integration/recover-verified-feature-fixes-20261108"
+            "recovery/ephinta-planner-budget-format-20261108"
+            "recovery/ephinta-responsive-music-player-20261108"
+            "recovery/ephinta-theme-text-contrast-20261108"
+            "release/android-production-ota-main-20261108"
+            "release/android-production-signing-main-20261108"
+            "release/android-signed-ci-20261108"
+            "release/android-signing-helper-20261108"
+            "release/android-signing-helper-current-20261108"
+            "release/ephinta-android-signing-helper-rebased-20261108"
+            "release/ios-signed-ci-20261108"
+            "release/ios-signed-distribution-main-20261108"
+            "release/ios-signed-distribution-main-port-20261108"
+            "test/database-restore-rehearsal-current-20261108"
+            "test/database-restore-rehearsal-main-20261108"
+            "verify/ephinta-main-acceptance-20261107"
+          )
+
+          # Never delete by name alone. Every candidate is fetched and
+          # compared against the exact resulting main tree before deletion.
+          # This preserves branches with unique work and merge conflicts.
+
+          for branch in "${branches[@]}"; do
+            encoded="$(jq -rn --arg value "$branch" '$value | @uri')"
+            if ! gh api "repos/$GITHUB_REPOSITORY/branches/$encoded" >/dev/null 2>&1; then
+              echo "Already absent: $branch"
+              continue
+            fi
+
+            # For any future branch added to the inventory, compute the merge
+            # result and delete only when no unique content remains.
+            if ! git fetch --no-tags origin "refs/heads/$branch:refs/remotes/origin/$branch"; then
+              echo "Preserved $branch: unable to fetch for merge-equivalence check."
+              continue
+            fi
+            if merge_output="$(git merge-tree --write-tree refs/remotes/origin/main "refs/remotes/origin/$branch" 2>&1)"; then
+              merged_tree="$(printf '%s\n' "$merge_output" | head -n 1)"
+              if [ "$merged_tree" = "$main_tree" ]; then
+                gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$encoded"
+                echo "Deleted fully integrated branch $branch"
+              else
+                echo "Preserved $branch: it still contributes content not present on main."
+              fi
+            else
+              echo "Preserved $branch: merge-equivalence check found conflicts."
+            fi
+          done
+
+          echo "Cleanup complete. The main branch was not touched."
