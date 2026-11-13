@@ -152,3 +152,14 @@ A targeted TinyFish browser run against commit `076358aa0a5531f5790abdb3ba3c58ab
 - Deposit greater than total is rejected
 
 The property-specific enquiry opens the customer desk with the selected property included in the prefilled message. The form was not submitted. The detail action buttons now use explicit button semantics and descriptive accessible labels; the image remains an alternate detail entry point.
+
+
+## Customer payment-plan dashboard milestone
+
+The authenticated customer dashboard now reads the existing customer-scoped `GET /api/me/payment-plans` endpoint and displays:
+- Estate and plot reference for each plan.
+- Agreed total and the deposit required under the plan (clearly not represented as already paid).
+- Instalment sequence, amount, due date and status.
+- The ledger entries attached to each plan, including direction, description, date and exact Naira formatting from integer kobo values.
+
+The UI distinguishes between no approved plan and no provider-verified ledger entries. It does not create payments, mark instalments paid, or issue receipts. The API integration test now checks that the customer payment-plan response includes the schedule and ledger collection, while remaining scoped to that customer.
