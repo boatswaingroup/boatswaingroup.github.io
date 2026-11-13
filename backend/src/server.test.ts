@@ -149,4 +149,20 @@ describe('Boatswain Property API', () => {
     expect(ownPlans.body.paymentPlans).toHaveLength(1);
     expect(otherPlans.body.paymentPlans).toHaveLength(0);
   });
+  it('revokes the current session and all sessions on request', async () => {
+    const current = await register(`${suffix}-logout@example.test`);
+    const logout = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${current}`);
+    expect(logout.status).toBe(200);
+    expect((await request(app).get('/api/me').set('Authorization', `Bearer ${current}`)).status).toBe(401);
+
+    const first = await register(`${suffix}-logout-all@example.test`);
+    const login = await request(app).post('/api/auth/login').send({ email: `${suffix}-logout-all@example.test`, password });
+    expect(login.status).toBe(200);
+    const second = login.body.accessToken as string;
+    const revokeAll = await request(app).post('/api/auth/logout-all').set('Authorization', `Bearer ${first}`);
+    expect(revokeAll.status).toBe(200);
+    expect(revokeAll.body.revokedSessions).toBe(2);
+    expect((await request(app).get('/api/me').set('Authorization', `Bearer ${second}`)).status).toBe(401);
+  });
+
 });
