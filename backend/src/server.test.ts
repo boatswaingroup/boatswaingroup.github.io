@@ -37,7 +37,8 @@ beforeAll(async () => {
     fullName: 'Boatswain Test Admin', email: `${suffix}-admin@example.test`, phone: '+2348030000001',
     passwordHash: await bcrypt.hash(password, 12), role: CustomerRole.ADMIN
   }});
-  adminToken = jwt.sign({ role: admin.role }, process.env.JWT_SECRET!, { subject: admin.id, expiresIn: '1h', issuer: 'boatswain-property-api', audience: 'boatswain-web' });
+  const adminSession = await prisma.session.create({ data: { customerId: admin.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) } });
+  adminToken = jwt.sign({ sid: adminSession.id }, process.env.JWT_SECRET!, { subject: admin.id, expiresIn: '1h', issuer: 'boatswain-property-api', audience: 'boatswain-web' });
 });
 
 afterAll(async () => {
