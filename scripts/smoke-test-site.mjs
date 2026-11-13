@@ -12,7 +12,7 @@ try {
   await page.locator('#search').fill('Moniya');
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Property search did not filter to Moniya');
   await page.locator('#search').fill('');
-  await page.locator('.property').filter({ hasText: 'Boatswain Royal Estate, Ido' }).locator('a').first().click();
+  await page.locator('.property').filter({ hasText: 'Boatswain Royal Estate, Ido' }).locator('button[data-open-property-detail]').click();
   if (!(await page.locator('#property-detail').isVisible())) throw new Error('Property detail view did not open');
   if (!(await page.locator('#detailTitle').innerText()).includes('Boatswain Royal Estate')) throw new Error('Property detail title was not populated');
   if (!(await page.locator('#detailDepositNotice').innerText()).includes('unverified reference information')) throw new Error('Reference deposit must be clearly marked unverified');
