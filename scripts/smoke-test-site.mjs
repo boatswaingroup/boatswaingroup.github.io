@@ -15,6 +15,22 @@ try {
   await page.locator('#type').selectOption('Agricultural land');
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Property type filter did not return one agricultural listing');
   await page.locator('#type').selectOption('');
+  await page.locator('#locationFilter').selectOption('ido');
+  if (await page.locator('.property:visible').count() !== 1) throw new Error('Location filter did not return the Ido listing');
+  await page.locator('#locationFilter').selectOption('');
+  await page.locator('#availabilityFilter').selectOption('coming-soon');
+  if (await page.locator('.property:visible').count() !== 1) throw new Error('Availability filter did not return the coming-soon listing');
+  await page.locator('#availabilityFilter').selectOption('');
+  await page.locator('#search').fill('no matching estate');
+  if (await page.locator('#noProperties').isHidden()) throw new Error('Empty search state was not displayed');
+  await page.locator('#search').fill('');
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (!(await page.locator('#menuToggle').isVisible())) throw new Error('Mobile navigation toggle is not visible');
+  await page.locator('#menuToggle').click();
+  if (!(await page.locator('#primaryNav a[href="#properties"]').isVisible())) throw new Error('Mobile navigation did not open');
+  await page.locator('#primaryNav a[href="#properties"]').click();
+  if (await page.locator('#primaryNav').isVisible()) throw new Error('Mobile navigation did not close after selection');
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.locator('[data-modal="account"]').first().click();
   if (!(await page.locator('#accountUnavailable').isVisible())) throw new Error('Expected safe enquiry-only state while API URL is unset');
   if (await page.locator('#accountAuth').isVisible()) throw new Error('Customer login must not appear before API configuration');
@@ -25,7 +41,7 @@ try {
   await page.locator('#accountForm button[type="submit"]').click();
   const openedUrl = await page.evaluate(() => window.__boatswainOpenedUrl || '');
   if (!openedUrl.startsWith('https://wa.me/2348033635755?text=')) throw new Error('WhatsApp enquiry handoff did not generate the expected destination URL');
-  console.log('Browser smoke test passed: property search, type filter, registration-interest form and WhatsApp handoff.');
+  console.log('Browser smoke test passed: search, type/location/availability filters, empty state, mobile navigation, registration-interest form and WhatsApp handoff.');
 } finally {
   await browser.close();
 }
