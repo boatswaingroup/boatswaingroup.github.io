@@ -41,6 +41,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.installment.deleteMany({ where: { paymentPlan: { reservation: { plotId } } } });
+  await prisma.paymentPlan.deleteMany({ where: { reservation: { plotId } } });
   await prisma.reservation.deleteMany({ where: { OR: [{ plotId }, { plot: { estateId: managedEstateId } }] } });
   if (managedEstateId) await prisma.plot.deleteMany({ where: { estateId: managedEstateId } });
   if (managedEstateId) await prisma.estate.deleteMany({ where: { id: managedEstateId } });
@@ -125,5 +127,26 @@ describe('Boatswain Property API', () => {
     expect(ownReservations.body.reservations).toHaveLength(1);
     expect(ownReservations.body.reservations[0].plot.estate.name).toBe('Automated Test Estate');
     expect(otherReservations.body.reservations).toHaveLength(0);
+
+    const reservationId = attempts.find(r => r.status === 201)!.body.reservation.id as string;
+    const customerPlanDenied = await request(app).post(`/api/staff/reservations/${reservationId}/payment-plan`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ depositKobo: '35000000', installmentCount: 6, intervalDays: 30 });
+    expect(customerPlanDenied.status).toBe(403);
+
+    const createdPlan = await request(app).post(`/api/staff/reservations/${reservationId}/payment-plan`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ depositKobo: '35000000', installmentCount: 6, intervalDays: 30 });
+    expect(createdPlan.status).toBe(201);
+    expect(createdPlan.body.paymentPlan.totalPriceKobo).toBe('350000000');
+    expect(createdPlan.body.paymentPlan.depositDueKobo).toBe('35000000');
+    expect(createdPlan.body.paymentPlan.installments).toHaveLength(6);
+    expect(createdPlan.body.paymentPlan.installments.every((item: { amountKobo: string }) => item.amountKobo === '52500000')).toBe(true);
+
+    const ownPlans = await request(app).get('/api/me/payment-plans').set('Authorization', `Bearer ${customerToken}`);
+    const otherPlans = await request(app).get('/api/me/payment-plans').set('Authorization', `Bearer ${secondCustomerToken}`);
+    expect(ownPlans.status).toBe(200);
+    expect(ownPlans.body.paymentPlans).toHaveLength(1);
+    expect(otherPlans.body.paymentPlans).toHaveLength(0);
   });
 });
