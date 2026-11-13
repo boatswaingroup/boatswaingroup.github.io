@@ -22,13 +22,16 @@ jobs:
       JWT_SECRET: test-secret-test-secret-test-secret-1234
       NODE_ENV: test
     steps:
-      - name: Check out authorized source foundation
+      - name: Check out the Boatswain branch and copied foundation
         uses: actions/checkout@v4
         with:
-          repository: demtaiwo1-eng/Winning-game-
-          ref: main
-          path: foundation/Winning-game
-          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+      - name: Verify imported source files exist
+        run: |
+          test -f foundation/Winning-game/eventsss123/eventsss-main/package.json
+          test -f foundation/Winning-game/eventsss123/eventsss-main/package-lock.json
+          test -f foundation/Winning-game/eventsss123/eventsss-main/apps/web/package.json
+          test -f foundation/Winning-game/eventsss123/eventsss-main/apps/api/package.json
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
