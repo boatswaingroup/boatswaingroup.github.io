@@ -15,7 +15,7 @@ try {
   await page.locator('.property').filter({ hasText: 'Boatswain Royal Estate, Ido' }).locator('button[data-open-property-detail]').click();
   if (!(await page.locator('#property-detail').isVisible())) throw new Error('Property detail view did not open');
   if (!(await page.locator('#detailTitle').innerText()).includes('Boatswain Royal Estate')) throw new Error('Property detail title was not populated');
-  if (!(await page.locator('#detailDepositNotice').innerText()).includes('unverified reference information')) throw new Error('Reference deposit must be clearly marked unverified');
+  if (!(await page.locator('#detailDepositNotice').innerText()).includes('does not publish a verified deposit amount')) throw new Error('Reference deposit must be clearly marked unverified');
   await page.locator('#planTotal').fill('5000000');
   await page.locator('#planDeposit').fill('500000');
   await page.locator('#planMonths').selectOption('6');
