@@ -28,6 +28,49 @@ enum ReservationStatus {
   CONVERTED
 }
 
+
+enum PaymentProvider {
+  MOCK
+  PAYSTACK
+  FLUTTERWAVE
+  MANUAL
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentPlanStatus {
+  ACTIVE
+  COMPLETED
+  DEFAULTED
+  CANCELLED
+}
+
+enum InstallmentStatus {
+  DUE
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum LedgerDirection {
+  CREDIT
+  DEBIT
+}
+
+enum LedgerEntryType {
+  DEPOSIT
+  INSTALLMENT
+  REFUND
+  ADJUSTMENT
+}
+
 model Customer {
   id           String      @id @default(cuid())
   fullName     String
@@ -39,6 +82,9 @@ model Customer {
   updatedAt    DateTime    @updatedAt
   enquiries    Enquiry[]
   reservations Reservation[]
+  paymentPlans PaymentPlan[]
+  payments Payment[]
+  ledgerEntries LedgerEntry[]
 }
 
 model Estate {
@@ -80,6 +126,100 @@ model Reservation {
   updatedAt   DateTime          @updatedAt
   @@index([plotId, status, expiresAt])
   @@index([customerId, createdAt])
+}
+
+model PaymentPlan {
+  id                  String            @id @default(cuid())
+  reservationId       String            @unique
+  reservation         Reservation       @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  customerId          String
+  customer            Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  currency            String            @default("NGN")
+  totalPriceKobo      BigInt
+  depositDueKobo      BigInt
+  installmentCount    Int               @default(0)
+  intervalDays        Int?
+  status              PaymentPlanStatus @default(ACTIVE)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  installments        Installment[]
+  payments            Payment[]
+  ledgerEntries       LedgerEntry[]
+  @@index([customerId, status])
+}
+
+model Installment {
+  id                String            @id @default(cuid())
+  paymentPlanId     String
+  paymentPlan       PaymentPlan       @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
+  sequenceNumber    Int
+  amountKobo        BigInt
+  dueAt             DateTime
+  status            InstallmentStatus @default(DUE)
+  paidAt            DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  payments          Payment[]
+  @@unique([paymentPlanId, sequenceNumber])
+  @@index([dueAt, status])
+}
+
+model Payment {
+  id                  String          @id @default(cuid())
+  customerId          String
+  customer            Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  reservationId       String
+  reservation         Reservation     @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  paymentPlanId       String?
+  paymentPlan         PaymentPlan?    @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
+  installmentId       String?
+  installment         Installment?    @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+  provider            PaymentProvider
+  status              PaymentStatus   @default(INITIATED)
+  amountKobo          BigInt
+  currency            String          @default("NGN")
+  idempotencyKey      String          @unique
+  providerReference   String?         @unique
+  checkoutUrl         String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  ledgerEntries       LedgerEntry[]
+  @@index([customerId, createdAt])
+  @@index([reservationId, status])
+}
+
+model PaymentEvent {
+  id                String          @id @default(cuid())
+  provider          PaymentProvider
+  providerEventId   String
+  eventType         String
+  payload           Json
+  receivedAt        DateTime        @default(now())
+  processedAt       DateTime?
+  processingError   String?
+  @@unique([provider, providerEventId])
+  @@index([receivedAt])
+}
+
+model LedgerEntry {
+  id                String           @id @default(cuid())
+  customerId        String
+  customer          Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  reservationId     String
+  reservation       Reservation      @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  paymentPlanId     String?
+  paymentPlan       PaymentPlan?     @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
+  paymentId         String?
+  payment           Payment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  direction         LedgerDirection
+  entryType         LedgerEntryType
+  amountKobo        BigInt
+  currency          String           @default("NGN")
+  reference         String           @unique
+  description       String
+  createdAt         DateTime         @default(now())
+  @@index([customerId, createdAt])
+  @@index([reservationId, createdAt])
 }
 
 model Enquiry {
