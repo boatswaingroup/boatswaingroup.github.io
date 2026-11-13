@@ -24,7 +24,8 @@ app.use(helmet());
 app.use(cors({ origin: (process.env.CORS_ORIGIN ?? '').split(',').map(v => v.trim()).filter(Boolean), credentials: false }));
 app.use(express.json({ limit: '32kb' }));
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }));
-app.use('/api/auth/password-reset', rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false }));
+app.use('/api/auth/password-reset/request', rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false }));
+app.use('/api/auth/password-reset/confirm', rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }));
 app.use('/api/enquiries', rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }));
 
 type AuthUser = { id: string; role: CustomerRole; sessionId: string };
