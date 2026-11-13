@@ -114,6 +114,7 @@ try {
   if (!(await dashboardPage.locator('#customerPaymentPlans').innerText()).includes('Instalment 1')) throw new Error('Customer dashboard did not display the instalment schedule');
   if (!(await dashboardPage.locator('#customerLedger').innerText()).includes('+₦500,000.00')) throw new Error('Customer dashboard did not display the verified ledger credit');
   await dashboardPage.locator('#logoutButton').click();
+  await dashboardPage.waitForFunction(() => document.getElementById('authMessage')?.textContent.includes('signed out securely'));
   if (!(await dashboardPage.locator('#authMessage').innerText()).includes('signed out securely')) throw new Error('Customer dashboard sign-out did not complete');
   await dashboardPage.close();
   console.log('Browser smoke test passed: catalogue filters, property details, payment planner, tailored enquiry, mobile navigation, WhatsApp handoff and authenticated payment-plan/ledger dashboard rendering.');
