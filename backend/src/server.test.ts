@@ -123,8 +123,11 @@ describe('Boatswain Property API', () => {
     ]);
     expect(attempts.map(r => r.status).sort()).toEqual([201, 409]);
     expect(attempts.find(r => r.status === 201)?.body.reservation.status).toBe('ACTIVE');
-    const ownReservations = await request(app).get('/api/me/reservations').set('Authorization', `Bearer ${customerToken}`);
-    const otherReservations = await request(app).get('/api/me/reservations').set('Authorization', `Bearer ${secondCustomerToken}`);
+    const winningAttempt = attempts.findIndex(r => r.status === 201);
+    const winnerToken = winningAttempt === 0 ? customerToken : secondCustomerToken;
+    const loserToken = winningAttempt === 0 ? secondCustomerToken : customerToken;
+    const ownReservations = await request(app).get('/api/me/reservations').set('Authorization', `Bearer ${winnerToken}`);
+    const otherReservations = await request(app).get('/api/me/reservations').set('Authorization', `Bearer ${loserToken}`);
     expect(ownReservations.status).toBe(200);
     expect(ownReservations.body.reservations).toHaveLength(1);
     expect(ownReservations.body.reservations[0].plot.estate.name).toBe('Automated Test Estate');
@@ -145,42 +148,13 @@ describe('Boatswain Property API', () => {
     expect(createdPlan.body.paymentPlan.installments).toHaveLength(6);
     expect(createdPlan.body.paymentPlan.installments.every((item: { amountKobo: string }) => item.amountKobo === '52500000')).toBe(true);
 
-    const ownPlans = await request(app).get('/api/me/payment-plans').set('Authorization', `Bearer ${customerToken}`);
-    const otherPlans = await request(app).get('/api/me/payment-plans').set('Authorization', `Bearer ${secondCustomerToken}`);
+    const ownPlans = await request(app).get('/api/me/payment-plans').set('Authorization', `Bearer ${winnerToken}`);
+    const otherPlans = await request(app).get('/api/me/payment-plans').set('Authorization', `Bearer ${loserToken}`);
     expect(ownPlans.status).toBe(200);
     expect(ownPlans.body.paymentPlans).toHaveLength(1);
     expect(ownPlans.body.paymentPlans[0].installments).toHaveLength(6);
     expect(ownPlans.body.paymentPlans[0].ledgerEntries).toHaveLength(0);
     expect(otherPlans.body.paymentPlans).toHaveLength(0);
-  });
-
-  it('sends generic password reset responses and consumes a hashed one-time token', async () => {
-    const email = `${suffix}-password-reset@example.test`;
-    const oldSession = await register(email);
-    let deliveredUrl = '';
-    process.env.PASSWORD_RESET_URL = 'https://boatswaingroup.github.io/';
-    setPasswordResetEmailSenderForTests(async (recipient, url) => {
-      expect(recipient).toBe(email);
-      deliveredUrl = url;
-    });
-    const known = await request(app).post('/api/auth/password-reset/request').send({ email });
-    const unknown = await request(app).post('/api/auth/password-reset/request').send({ email: `${suffix}-unknown@example.test` });
-    expect(known.status).toBe(202);
-    expect(unknown.status).toBe(202);
-    expect(known.body.message).toBe(unknown.body.message);
-    const rawToken = new URLSearchParams(new URL(deliveredUrl).hash.slice(1)).get('passwordResetToken');
-    expect(rawToken).toMatch(/^[a-f0-9]{64}$/);
-    const tokenHash = createHash('sha256').update(rawToken!).digest('hex');
-    const stored = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
-    expect(stored).not.toBeNull();
-    expect(stored!.tokenHash).not.toBe(rawToken);
-    const reset = await request(app).post('/api/auth/password-reset/confirm').send({ token: rawToken, password: 'New-Strong-Password-2026!' });
-    expect(reset.status).toBe(200);
-    expect((await request(app).get('/api/me').set('Authorization', `Bearer ${oldSession}`)).status).toBe(401);
-    expect((await request(app).post('/api/auth/login').send({ email, password: 'New-Strong-Password-2026!' })).status).toBe(200);
-    const reused = await request(app).post('/api/auth/password-reset/confirm').send({ token: rawToken, password: 'Another-Strong-Password-2026!' });
-    expect(reused.status).toBe(400);
-    setPasswordResetEmailSenderForTests(null);
   });
 
   it('returns generic password recovery responses and consumes a hashed one-time token', async () => {
