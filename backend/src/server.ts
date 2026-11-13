@@ -78,6 +78,19 @@ const plotUpdateSchema = z.object({
   priceKobo: z.string().regex(/^\d{1,18}$/).nullable().optional(),
   status: z.nativeEnum(PlotStatus).optional()
 }).refine(value => Object.keys(value).length > 0, 'At least one field is required');
+const paymentPlanCreateSchema = z.object({
+  depositKobo: z.string().regex(/^\d{1,18}$/),
+  installmentCount: z.number().int().min(0).max(120),
+  intervalDays: z.number().int().min(1).max(365).optional()
+}).superRefine((value, ctx) => {
+  if (value.installmentCount > 0 && value.intervalDays === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['intervalDays'], message: 'An interval is required when instalments are enabled' });
+  }
+  if (value.installmentCount === 0 && value.intervalDays !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['intervalDays'], message: 'An interval is not used for a full-balance payment' });
+  }
+});
+
 const enquirySchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254),
@@ -217,6 +230,84 @@ app.patch('/api/staff/plots/:plotId', authenticate, requireAdmin, asyncRoute(asy
   if (parsed.data.status !== undefined) data.status = parsed.data.status;
   const plot = await prisma.plot.update({ where: { id: current.id }, data, select: { id: true, estateId: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } });
   return res.json({ plot: { ...plot, priceKobo: plot.priceKobo?.toString() ?? null } });
+}));
+
+app.post('/api/staff/reservations/:reservationId/payment-plan', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = paymentPlanCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payment plan details', details: parsed.error.flatten() });
+  const reservation = await prisma.reservation.findUnique({
+    where: { id: req.params.reservationId },
+    include: { plot: true }
+  });
+  if (!reservation || reservation.status !== ReservationStatus.ACTIVE || reservation.expiresAt <= new Date()) {
+    return res.status(409).json({ error: 'A current active plot reservation is required to create a payment plan' });
+  }
+  if (reservation.plot.status !== PlotStatus.RESERVED || reservation.plot.priceKobo === null) {
+    return res.status(409).json({ error: 'The reserved plot must have an approved price before a plan can be created' });
+  }
+  const totalPriceKobo = reservation.plot.priceKobo;
+  const depositDueKobo = BigInt(parsed.data.depositKobo);
+  if (depositDueKobo > totalPriceKobo) return res.status(400).json({ error: 'Deposit cannot exceed the approved plot price' });
+  if (parsed.data.installmentCount === 0 && depositDueKobo !== totalPriceKobo) {
+    return res.status(400).json({ error: 'A plan without instalments must collect the full approved price as its deposit due' });
+  }
+  if (parsed.data.installmentCount > 0 && depositDueKobo === totalPriceKobo) {
+    return res.status(400).json({ error: 'Instalments cannot be added when the full price is due as the deposit' });
+  }
+  const remaining = totalPriceKobo - depositDueKobo;
+  const count = BigInt(parsed.data.installmentCount);
+  const baseAmount = count > 0n ? remaining / count : 0n;
+  const remainder = count > 0n ? remaining % count : 0n;
+  const now = new Date();
+  const installments = Array.from({ length: parsed.data.installmentCount }, (_, index) => ({
+    sequenceNumber: index + 1,
+    amountKobo: baseAmount + (BigInt(index) < remainder ? 1n : 0n),
+    dueAt: new Date(now.getTime() + (parsed.data.intervalDays! * (index + 1) * 24 * 60 * 60 * 1000))
+  }));
+  try {
+    const plan = await prisma.paymentPlan.create({
+      data: {
+        reservationId: reservation.id,
+        customerId: reservation.customerId,
+        totalPriceKobo,
+        depositDueKobo,
+        installmentCount: parsed.data.installmentCount,
+        intervalDays: parsed.data.intervalDays ?? null,
+        installments: { create: installments }
+      },
+      include: { installments: { orderBy: { sequenceNumber: 'asc' } } }
+    });
+    return res.status(201).json({ paymentPlan: {
+      ...plan,
+      totalPriceKobo: plan.totalPriceKobo.toString(),
+      depositDueKobo: plan.depositDueKobo.toString(),
+      installments: plan.installments.map(item => ({ ...item, amountKobo: item.amountKobo.toString() }))
+    } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: 'A payment plan already exists for this reservation' });
+    }
+    throw error;
+  }
+}));
+
+app.get('/api/me/payment-plans', authenticate, asyncRoute(async (req, res) => {
+  const plans = await prisma.paymentPlan.findMany({
+    where: { customerId: req.user!.id },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      reservation: { select: { id: true, plot: { select: { plotCode: true, sizeSqm: true, estate: { select: { name: true } } } } },
+      installments: { orderBy: { sequenceNumber: 'asc' } },
+      ledgerEntries: { orderBy: { createdAt: 'asc' } }
+    }
+  });
+  return res.json({ paymentPlans: plans.map(plan => ({
+    ...plan,
+    totalPriceKobo: plan.totalPriceKobo.toString(),
+    depositDueKobo: plan.depositDueKobo.toString(),
+    installments: plan.installments.map(item => ({ ...item, amountKobo: item.amountKobo.toString() })),
+    ledgerEntries: plan.ledgerEntries.map(entry => ({ ...entry, amountKobo: entry.amountKobo.toString() }))
+  })) });
 }));
 
 app.get('/api/staff/enquiries', authenticate, requireStaff, asyncRoute(async (_req, res) => {
