@@ -34,7 +34,7 @@ const required = [
   '/api/auth/password-reset/confirm',
   'one-time',
   'Buyer due diligence',
-  'unverified reference information',
+  'does not publish a verified deposit amount',
   'availabilityFilter',
   'menuToggle',
   'resetFilters',
