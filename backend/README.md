@@ -15,6 +15,7 @@ A separate Node/Express + PostgreSQL API for customer accounts, public estate/pl
 - `GET /health` — process liveness.
 - `GET /ready` — checks PostgreSQL connectivity.
 - `POST /api/auth/register`, `POST /api/auth/login` — customer account and short-lived bearer token.
+- `POST /api/auth/password-reset/request`, `POST /api/auth/password-reset/confirm` — generic, rate-limited email recovery with hashed single-use 30-minute tokens and session revocation.
 - `GET /api/me` — authenticated customer profile.
 - `GET /api/estates`, `GET /api/estates/:slug/plots` — published inventory.
 - `POST /api/enquiries` — validates and stores an enquiry.
