@@ -15,7 +15,7 @@ A mobile-first public website foundation for Boatswain Group, with Boatswain Pro
 
 ## Important status
 
-This is an actively developed application foundation, **not yet a production-ready or live transaction system**. The API and database code are implemented on the development branch, but the public GitHub Pages frontend has no configured API URL and therefore does not expose live accounts or reservations. Payment tables are accounting infrastructure only: there is no payment initialization, gateway SDK, webhook, customer charge, or receipt generation. No live payment is enabled. The ₦350,000 amount is a proposed rule from the project brief, not a universal deposit policy or payment request.
+This is an actively developed application foundation, **not yet a production-ready or live transaction system**. The API and database code are implemented on the development branch, but the public GitHub Pages frontend has no configured API URL and therefore does not expose live accounts or reservations. Payment tables are accounting infrastructure only: there is no payment initialization, gateway SDK, webhook, customer charge, or receipt generation. No live payment is enabled. The public Boatswain website audit did not find verified deposit amounts or exact monthly instalment amounts. Any amount mentioned in earlier project notes is unconfirmed and must not be displayed as an approved price or payment request.
 
 Production activation requires:
 1. Confirmed estate catalogue, plot dimensions, pricing, site plans, availability and allocation rules.
@@ -40,7 +40,7 @@ In GitHub, open **Settings → Pages** and set **Build and deployment → Source
 - Replace the temporary lettermark with the official Boatswain Group logo when supplied.
 - Confirm the official names and services for divisions 3–6.
 - Supply approved Boatswain Properties estate descriptions, verified images, locations, plot maps, prices and legal documents.
-- Confirm whether the exact deposit is ₦350,000 for every estate/plot or varies by offering.
+- Confirm the approved deposit rule and six-month instalment formula for each property; exact deposits are not published on the public website.
 
 ## Source-code and third-party rights
 
@@ -65,7 +65,7 @@ The active implementation is maintained on `project/boatswain-platform-foundatio
 - Added a mobile navigation menu, more useful catalogue filters (type, location and availability), visible result count, empty state and clear-filters action.
 - Added lazy-loaded property imagery and meaningful alt text, plus a photographic hero treatment.
 - Fixed price sorting so the cards actually reorder in the displayed grid.
-- Replaced the blanket deposit wording with property-specific written-offer guidance. The reference website displays ₦350,000 / ₦550,000 / ₦1,100,000 by property type; those figures still require business confirmation.
+- Removed provisional deposit figures from property cards after the 13 November public-site audit found that exact deposits were not published. Property details now request a written quote.
 - Sign-out now revokes the current server session when the API is configured.
 - Expanded Chromium smoke coverage for the filters, empty state and mobile navigation.
 
@@ -74,7 +74,7 @@ The public GitHub Pages URL still serves the older preview. These changes are on
 
 ## Property-detail and purchase-planning journey
 - Catalogue cards now open an in-app property-detail view with the reference listing's displayed title, location, size, price range, status and source-page link.
-- Each displayed reference deposit is labelled unverified and is not a payment request or approved company quotation.
+- Property details do not display an unverified deposit amount as if it were a published fact.
 - The detail view includes a buyer due-diligence checklist covering survey references, title review, boundaries/access, written price and instalment terms, allocation/refund conditions and official receipts.
 - An illustrative planner calculates a remaining balance and equal monthly scenario from a buyer-entered written total/deposit. It rejects deposits greater than the total and does not assume an approved rate, fees or contractual terms.
 - The property-specific enquiry CTA pre-fills the selected property and asks the team for verified inventory, title documents and written payment terms. It does not reserve a plot or collect money.
