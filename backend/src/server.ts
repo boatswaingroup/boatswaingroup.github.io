@@ -8,6 +8,8 @@ import jwt from 'jsonwebtoken';
 import { Prisma, PrismaClient, CustomerRole, PlotStatus, ReservationStatus } from '@prisma/client';
 import { z } from 'zod';
 import { pathToFileURL } from 'node:url';
+import { createHash, randomBytes } from 'node:crypto';
+import nodemailer from 'nodemailer';
 
 const required = ['DATABASE_URL', 'JWT_SECRET'] as const;
 for (const key of required) {
@@ -22,6 +24,7 @@ app.use(helmet());
 app.use(cors({ origin: (process.env.CORS_ORIGIN ?? '').split(',').map(v => v.trim()).filter(Boolean), credentials: false }));
 app.use(express.json({ limit: '32kb' }));
 app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }));
+app.use('/api/auth/password-reset', rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false }));
 app.use('/api/enquiries', rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }));
 
 type AuthUser = { id: string; role: CustomerRole; sessionId: string };
@@ -70,6 +73,25 @@ const registerSchema = z.object({
   password: z.string().min(12).max(128)
 });
 const loginSchema = z.object({ email: z.string().email().transform(v => v.toLowerCase()), password: z.string().min(1).max(128) });
+const passwordResetRequestSchema = z.object({ email: z.string().trim().email().max(254).transform(v => v.toLowerCase()) });
+const passwordResetConfirmSchema = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/i), password: z.string().min(12).max(128) });
+
+type PasswordResetEmailSender = (email: string, resetUrl: string) => Promise<void>;
+const defaultPasswordResetEmailSender: PasswordResetEmailSender = async (email, resetUrl) => {
+  const host = process.env.SMTP_HOST;
+  const from = process.env.SMTP_FROM;
+  if (!host || !from) throw new Error('SMTP password-reset delivery is not configured');
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+  const transport = nodemailer.createTransport({ host, port: Number(process.env.SMTP_PORT || 587), secure: process.env.SMTP_SECURE === 'true', auth: user && pass ? { user, pass } : undefined });
+  await transport.sendMail({
+    from, to: email, subject: 'Reset your Boatswain account password',
+    text: 'We received a request to reset your Boatswain account password. This link expires in 30 minutes and can only be used once:\n\n' + resetUrl + '\n\nIf you did not request this, you can ignore this email.',
+    html: '<p>We received a request to reset your Boatswain account password.</p><p><a href="' + resetUrl + '">Choose a new password</a></p><p>This link expires in 30 minutes and can only be used once. If you did not request this, you can ignore this email.</p>'
+  });
+};
+let passwordResetEmailSender: PasswordResetEmailSender = defaultPasswordResetEmailSender;
+export function setPasswordResetEmailSenderForTests(sender: PasswordResetEmailSender | null) { passwordResetEmailSender = sender ?? defaultPasswordResetEmailSender; }
 const estateCreateSchema = z.object({
   name: z.string().trim().min(2).max(160),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100),
@@ -148,6 +170,51 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   return res.json(await issueSession(customer));
 }));
 
+app.post('/api/auth/password-reset/request', asyncRoute(async (req, res) => {
+  const parsed = passwordResetRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Enter a valid email address' });
+  const genericMessage = 'If an account with that email exists, a password reset link will be sent.';
+  const customer = await prisma.customer.findUnique({ where: { email: parsed.data.email }, select: { id: true, email: true } });
+  if (customer) {
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const now = new Date();
+    await prisma.passwordResetToken.updateMany({ where: { customerId: customer.id, usedAt: null }, data: { usedAt: now } });
+    const resetToken = await prisma.passwordResetToken.create({ data: { customerId: customer.id, tokenHash, expiresAt: new Date(now.getTime() + 30 * 60 * 1000) } });
+    try {
+      const configuredUrl = process.env.PASSWORD_RESET_URL;
+      if (!configuredUrl) throw new Error('PASSWORD_RESET_URL is not configured');
+      const resetUrl = new URL(configuredUrl);
+      if (resetUrl.protocol !== 'https:' && resetUrl.hostname !== 'localhost') throw new Error('PASSWORD_RESET_URL must use HTTPS outside local development');
+      resetUrl.searchParams.set('passwordResetToken', rawToken);
+      await passwordResetEmailSender(customer.email, resetUrl.toString());
+    } catch (error) {
+      await prisma.passwordResetToken.delete({ where: { id: resetToken.id } }).catch(() => undefined);
+      console.error('Password reset email delivery failed; verify the configured email service.');
+    }
+  }
+  return res.status(202).json({ message: genericMessage });
+}));
+
+app.post('/api/auth/password-reset/confirm', asyncRoute(async (req, res) => {
+  const parsed = passwordResetConfirmSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'The reset link is invalid or has expired. Request a new link.' });
+  const tokenHash = createHash('sha256').update(parsed.data.token).digest('hex');
+  const token = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  const now = new Date();
+  if (!token || token.usedAt || token.expiresAt <= now) return res.status(400).json({ error: 'The reset link is invalid or has expired. Request a new link.' });
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  const completed = await prisma.$transaction(async tx => {
+    const claimed = await tx.passwordResetToken.updateMany({ where: { id: token.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
+    if (claimed.count !== 1) return false;
+    await tx.customer.update({ where: { id: token.customerId }, data: { passwordHash } });
+    await tx.session.updateMany({ where: { customerId: token.customerId, revokedAt: null }, data: { revokedAt: now } });
+    await tx.passwordResetToken.updateMany({ where: { customerId: token.customerId, id: { not: token.id }, usedAt: null }, data: { usedAt: now } });
+    return true;
+  });
+  if (!completed) return res.status(400).json({ error: 'The reset link is invalid or has expired. Request a new link.' });
+  return res.json({ message: 'Your password has been reset. You can now sign in with your new password.' });
+}));
 app.post('/api/auth/logout', authenticate, asyncRoute(async (req, res) => {
   await prisma.session.updateMany({
     where: { id: req.user!.sessionId, customerId: req.user!.id, revokedAt: null },
