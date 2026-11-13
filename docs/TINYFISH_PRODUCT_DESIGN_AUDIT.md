@@ -142,3 +142,13 @@ The detail view also includes:
 GitHub Actions passed the API build and integration tests, static checks, Chromium smoke tests and reference-site crawl on the validation commit. The Chromium smoke test explicitly covers the property detail, deposit disclaimer, planner arithmetic and validation, enquiry prefill, and return-to-catalogue journey.
 
 A TinyFish inspection of the third-party HTML preview service returned the older source property-detail page after following an external link; it did not validate the in-app detail view. Treat that browser result as a preview-navigation/cache mismatch, not as evidence that the new feature is absent. The source branch and CI smoke test are authoritative for this milestone. A separate full visual/mobile browser review of this new in-app detail view remains a follow-up quality gate.
+
+
+### Live interaction check of the detail journey
+
+A targeted TinyFish browser run against commit `076358aa0a5531f5790abdb3ba3c58abd05d7263` confirmed that the explicit **View property details** button keeps the visitor inside the Boatswain preview and opens the in-page detail view. On Boatswain Royal Estate, Ido it confirmed the ₦350,000 source-displayed deposit is explicitly marked unverified, all six due-diligence prompts are visible, and the planner works:
+- ₦5,000,000 total − ₦500,000 deposit = ₦4,500,000 balance
+- Six equal illustrative months ≈ ₦750,000 per month
+- Deposit greater than total is rejected
+
+The property-specific enquiry opens the customer desk with the selected property included in the prefilled message. The form was not submitted. The detail action buttons now use explicit button semantics and descriptive accessible labels; the image remains an alternate detail entry point.
