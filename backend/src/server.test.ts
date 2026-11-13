@@ -148,6 +148,8 @@ describe('Boatswain Property API', () => {
     const otherPlans = await request(app).get('/api/me/payment-plans').set('Authorization', `Bearer ${secondCustomerToken}`);
     expect(ownPlans.status).toBe(200);
     expect(ownPlans.body.paymentPlans).toHaveLength(1);
+    expect(ownPlans.body.paymentPlans[0].installments).toHaveLength(6);
+    expect(ownPlans.body.paymentPlans[0].ledgerEntries).toHaveLength(0);
     expect(otherPlans.body.paymentPlans).toHaveLength(0);
   });
   it('revokes the current session and all sessions on request', async () => {
