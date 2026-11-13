@@ -157,6 +157,28 @@ describe('Boatswain Property API', () => {
     expect(otherPlans.body.paymentPlans).toHaveLength(0);
   });
 
+  it('releases expired plot holds when public inventory is read', async () => {
+    const created = await prisma.plot.create({ data: {
+      estateId, plotCode: 'TEST-EXPIRED', sizeSqm: 300, priceKobo: 350000000n
+    } });
+    const held = await request(app).post(`/api/plots/${created.id}/reservations`)
+      .set('Authorization', `Bearer ${customerToken}`);
+    expect(held.status).toBe(201);
+    await prisma.reservation.update({
+      where: { id: held.body.reservation.id },
+      data: { expiresAt: new Date(Date.now() - 1000) }
+    });
+
+    const inventory = await request(app).get(`/api/estates/${suffix}/plots`);
+    expect(inventory.status).toBe(200);
+    expect(inventory.body.plots.some((plot: { id: string }) => plot.id === created.id)).toBe(true);
+
+    const reservation = await prisma.reservation.findUnique({ where: { id: held.body.reservation.id } });
+    const releasedPlot = await prisma.plot.findUnique({ where: { id: created.id } });
+    expect(reservation?.status).toBe('EXPIRED');
+    expect(releasedPlot?.status).toBe('AVAILABLE');
+  });
+
   it('returns generic password recovery responses and consumes a hashed one-time token', async () => {
     const email = `${suffix}-password-reset@example.test`;
     const oldSession = await register(email);
