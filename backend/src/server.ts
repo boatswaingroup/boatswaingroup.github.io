@@ -296,7 +296,7 @@ app.get('/api/me/payment-plans', authenticate, asyncRoute(async (req, res) => {
     where: { customerId: req.user!.id },
     orderBy: { createdAt: 'desc' },
     include: {
-      reservation: { select: { id: true, plot: { select: { plotCode: true, sizeSqm: true, estate: { select: { name: true } } } } },
+      reservation: { select: { id: true, plot: { select: { plotCode: true, sizeSqm: true, estate: { select: { name: true } } } } } },
       installments: { orderBy: { sequenceNumber: 'asc' } },
       ledgerEntries: { orderBy: { createdAt: 'asc' } }
     }
