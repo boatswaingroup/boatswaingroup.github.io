@@ -3,7 +3,7 @@
 ## Reference foundation
 The requested reference is demtaiwo1-eng/Winning-game- on its main branch. Inspection confirms a TypeScript/React monorepo with an eventsss123/eventsss-main workspace, a web app, an API workspace, database/Prisma scripts, automated tests and GitHub Actions workflows. Treat these as candidate patterns, not proof that every workflow or subsystem is safe or production-ready.
 
-The source repository has no declared licence. The Boatswain project owner explicitly authorized reuse of this repository as a foundation. Preserve the original repository untouched, retain applicable notices, and review all dependencies, code provenance and third-party rights before adapting components. The compatibility workflow checks out the source into an isolated CI workspace; it does not import or deploy the source application.
+The source repository has no declared licence. The Boatswain project owner explicitly authorized reuse of this repository as a foundation. A complete snapshot is now stored at `foundation/Winning-game/`; the original upstream repository remains untouched. Retain applicable notices and review dependencies, code provenance and third-party rights before adapting components. The nested `.github/workflows` directory is part of the snapshot only and is not a root workflow in this repository. The compatibility workflow checks out the source into an isolated CI workspace and runs its current test/build commands; it does not deploy the source application.
 
 ## Target platform
 - React + TypeScript responsive web client.
