@@ -172,7 +172,7 @@ The customer account journey now includes a forgot-password request form and a r
 ### Security behaviour
 - Reset requests are rate-limited to five per hour per client IP, in addition to the general authentication rate limit.
 - The request endpoint returns the same generic `202` response for known and unknown email addresses and applies a minimum response duration to reduce account enumeration by timing.
-- Reset tokens are generated from 32 cryptographically random bytes. Only a SHA-256 hash is stored in PostgreSQL; the raw token is delivered by email and never logged or returned by the API.
+- Reset tokens are generated from 32 cryptographically random bytes. Only a SHA-256 hash is stored in PostgreSQL; the raw token is delivered by email in the URL fragment (not the query string), so browsers do not send it to the server or third-party image hosts in HTTP Referer headers. It is never logged or returned by the API.
 - Tokens expire after 30 minutes, only one unused token per customer remains valid, and each token can be consumed once.
 - Successful reset updates the password hash and revokes all active sessions in the same database transaction.
 - Invalid, expired and reused links receive the same generic invalid-link response.
