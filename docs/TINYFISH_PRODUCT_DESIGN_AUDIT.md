@@ -181,3 +181,8 @@ The customer account journey now includes a forgot-password request form and a r
 
 ### Activation requirements
 Set `PASSWORD_RESET_URL` to the deployed HTTPS customer website and configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, `SMTP_USER` and `SMTP_PASSWORD` in the hosting provider's secret environment settings. No SMTP credentials belong in GitHub source files or chat. Until these settings are supplied, the reset UI remains a code-complete but non-delivering integration.
+
+
+### Password recovery preview verification note
+
+TinyFish's final attempt to open the immutable development HTML through the third-party raw preview returned 404, so a separate visual inspection of the new reset forms could not be completed. The actual branch source contains the forgot-password request and reset-confirm forms, and the GitHub Actions Chromium smoke test passed their interaction using a mocked API. The API integration tests also passed the generic response, hashed token storage, expiry, single-use enforcement, new-password login and session revocation cases. Do not interpret the third-party preview failure as an application 404.
