@@ -1,0 +1,70 @@
+name: Boatswain website quality checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [copy-winning-game-foundation]
+
+permissions:
+  contents: read
+
+jobs:
+  static-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Validate public catalogue
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import re
+
+          source = Path("index.html").read_text(encoding="utf-8")
+
+          class Audit(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = []
+                  self.cards = 0
+                  self.hrefs = []
+                  self.text = []
+                  self.in_script = False
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if "id" in attrs:
+                      self.ids.append(attrs["id"])
+                  if tag == "article" and "card" in attrs.get("class", "").split():
+                      self.cards += 1
+                  if tag == "a" and attrs.get("href"):
+                      self.hrefs.append(attrs["href"])
+                  if tag == "script":
+                      self.in_script = True
+              def handle_endtag(self, tag):
+                  if tag == "script":
+                      self.in_script = False
+              def handle_data(self, data):
+                  if not self.in_script:
+                      self.text.append(data)
+
+          audit = Audit()
+          audit.feed(source)
+          duplicates = sorted({item for item in audit.ids if audit.ids.count(item) > 1})
+          assert not duplicates, f"Duplicate HTML ids: {duplicates}"
+          assert audit.cards == 6, f"Expected 6 published property cards, found {audit.cards}"
+          assert len(audit.hrefs) >= 20, f"Expected property/contact navigation links, found {len(audit.hrefs)}"
+          assert any("boatswainproperties.com" in href for href in audit.hrefs), "Missing official website links"
+          assert any("wa.me/2348033635755" in href for href in audit.hrefs), "Missing WhatsApp enquiry link"
+          visible = " ".join(audit.text).lower()
+          for required in ["greenfarm settlement", "moniya gateway estate", "lagos-ibadan expressway plots", "boatswain royal estate", "ago-are commercial plots", "ona ara residential plots"]:
+              assert required in visible, f"Missing catalogue listing: {required}"
+          for required in ["08033635755", "boatswainproperties@gmail.com", "rc 942549"]:
+              assert required in visible, f"Missing company contact/identity: {required}"
+          for forbidden in ["estate image to be added", "division three", "coming soon placeholder"]:
+              assert forbidden not in source.lower(), f"Placeholder content remains: {forbidden}"
+          assert re.search(r"addEventListener\('input',filter\)", source), "Property filtering handler is missing"
+          print(f"PASS: {audit.cards} property cards, {len(audit.ids)} unique IDs, {len(audit.hrefs)} links.")
+          PY
