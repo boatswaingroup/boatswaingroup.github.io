@@ -58,3 +58,15 @@ The design and code in this repository are independently implemented for Boatswa
 ## Development branch and review
 
 The active implementation is maintained on `project/boatswain-platform-foundation` in draft [PR #1](https://github.com/boatswaingroup/boatswain.github.io/pull/1). It is intentionally not merged to `main` or deployed as the live customer system. See `docs/ARCHITECTURE.md` for payment safeguards and remaining launch gates.
+
+
+## Product-design improvements (13 November 2026)
+- Completed a read-only TinyFish browser review of the live Boatswain Properties reference and the public group preview. Findings and caveats are recorded in `docs/TINYFISH_PRODUCT_DESIGN_AUDIT.md`.
+- Added a mobile navigation menu, more useful catalogue filters (type, location and availability), visible result count, empty state and clear-filters action.
+- Added lazy-loaded property imagery and meaningful alt text, plus a photographic hero treatment.
+- Fixed price sorting so the cards actually reorder in the displayed grid.
+- Replaced the blanket deposit wording with property-specific written-offer guidance. The reference website displays ₦350,000 / ₦550,000 / ₦1,100,000 by property type; those figures still require business confirmation.
+- Sign-out now revokes the current server session when the API is configured.
+- Expanded Chromium smoke coverage for the filters, empty state and mobile navigation.
+
+The public GitHub Pages URL still serves the older preview. These changes are on the development branch only and are not live.
