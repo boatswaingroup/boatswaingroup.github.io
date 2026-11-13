@@ -21,6 +21,13 @@ try {
   await page.locator('#availabilityFilter').selectOption('coming-soon');
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Availability filter did not return the coming-soon listing');
   await page.locator('#availabilityFilter').selectOption('');
+  await page.locator('#minPrice').fill('2500000');
+  if (await page.locator('.property:visible').count() !== 4) throw new Error('Minimum price filter did not return four matching listings');
+  await page.locator('#minPrice').fill('');
+  await page.locator('#sort').selectOption('high');
+  if (!(await page.locator('.property:visible h3').first().innerText()).includes('GreenFarm')) throw new Error('Price sorting did not reorder the cards');
+  await page.locator('#resetFilters').click();
+  if (await page.locator('.property:visible').count() !== 6) throw new Error('Clear filters did not restore all six listings');
   await page.locator('#search').fill('no matching estate');
   if (await page.locator('#noProperties').isHidden()) throw new Error('Empty search state was not displayed');
   await page.locator('#search').fill('');
