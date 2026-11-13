@@ -69,7 +69,54 @@ try {
   await page.locator('#accountForm button[type="submit"]').click();
   const openedUrl = await page.evaluate(() => window.__boatswainOpenedUrl || '');
   if (!openedUrl.startsWith('https://wa.me/2348033635755?text=')) throw new Error('WhatsApp enquiry handoff did not generate the expected destination URL');
-  console.log('Browser smoke test passed: catalogue filters, sort/reset, property detail navigation, unverified deposit disclosure, payment estimate and validation, property-specific enquiry, mobile navigation and WhatsApp handoff.');
+  const dashboardPage = await browser.newPage();
+  await dashboardPage.addInitScript(() => {
+    const originalQuerySelector = Document.prototype.querySelector;
+    Document.prototype.querySelector = function (selector) {
+      if (selector === 'meta[name="boatswain-api-url"]') return { content: 'https://boatswain-api.test' };
+      return originalQuerySelector.call(this, selector);
+    };
+  });
+  await dashboardPage.route('https://boatswain-api.test/**', async route => {
+    const url = new URL(route.request().url());
+    const method = route.request().method();
+    let payload = {};
+    if (url.pathname === '/api/auth/login' && method === 'POST') {
+      payload = { accessToken: 'mock-session-token', customer: { id: 'customer-1', fullName: 'Browser Test Customer', email: 'customer@example.test', role: 'CUSTOMER' } };
+    } else if (url.pathname === '/api/me') {
+      payload = { customer: { id: 'customer-1', fullName: 'Browser Test Customer', email: 'customer@example.test', phone: '+2348030000000', role: 'CUSTOMER' } };
+    } else if (url.pathname === '/api/me/reservations') {
+      payload = { reservations: [] };
+    } else if (url.pathname === '/api/estates') {
+      payload = { estates: [] };
+    } else if (url.pathname === '/api/me/payment-plans') {
+      payload = { paymentPlans: [{
+        status: 'ACTIVE', totalPriceKobo: '500000000', depositDueKobo: '50000000',
+        reservation: { plot: { plotCode: 'A-001', sizeSqm: 300, estate: { name: 'Boatswain Royal Estate' } } },
+        installments: [{ sequenceNumber: 1, amountKobo: '75000000', dueAt: '2026-12-13T00:00:00.000Z', status: 'DUE' }],
+        ledgerEntries: [{ description: 'Verified deposit', entryType: 'DEPOSIT', direction: 'CREDIT', amountKobo: '50000000', createdAt: '2026-11-13T12:00:00.000Z' }]
+      }] };
+    } else if (url.pathname === '/api/auth/logout' && method === 'POST') {
+      payload = { ok: true, message: 'This session has been revoked' };
+    } else {
+      return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected mocked API request: ' + method + ' ' + url.pathname }) });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+  });
+  await dashboardPage.goto(pathToFileURL(path.resolve('index.html')).href);
+  await dashboardPage.locator('[data-modal="account"]').first().click();
+  if (!(await dashboardPage.locator('#accountAuth').isVisible())) throw new Error('Configured API should expose secure customer login');
+  await dashboardPage.locator('#loginForm [name="email"]').fill('customer@example.test');
+  await dashboardPage.locator('#loginForm [name="password"]').fill('Correct-Horse-Battery-42!');
+  await dashboardPage.locator('#loginForm button[type="submit"]').click();
+  await dashboardPage.locator('#customerPaymentPlans .financial-plan').waitFor({ state: 'visible' });
+  if (!(await dashboardPage.locator('#customerPaymentPlans').innerText()).includes('₦5,000,000.00')) throw new Error('Customer dashboard did not display the agreed payment-plan total');
+  if (!(await dashboardPage.locator('#customerPaymentPlans').innerText()).includes('Instalment 1')) throw new Error('Customer dashboard did not display the instalment schedule');
+  if (!(await dashboardPage.locator('#customerLedger').innerText()).includes('+₦500,000.00')) throw new Error('Customer dashboard did not display the verified ledger credit');
+  await dashboardPage.locator('#logoutButton').click();
+  if (!(await dashboardPage.locator('#authMessage').innerText()).includes('signed out securely')) throw new Error('Customer dashboard sign-out did not complete');
+  await dashboardPage.close();
+  console.log('Browser smoke test passed: catalogue filters, property details, payment planner, tailored enquiry, mobile navigation, WhatsApp handoff and authenticated payment-plan/ledger dashboard rendering.');
 } finally {
   await browser.close();
 }
