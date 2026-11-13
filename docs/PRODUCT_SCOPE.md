@@ -12,7 +12,7 @@
 - Exact plot inventory with plot ID, estate, dimensions, location, price and authoritative availability.
 - Registration, sign-in, account recovery and customer profile.
 - Plot selection, reservation expiry, allocation and customer dashboard.
-- ₦350,000 initial deposit as specified in the brief, subject to confirmation of how it applies across estates.
+- Property-specific deposit and instalment schedules generated only from approved, versioned written offers; public source pages do not publish exact deposit amounts.
 - Approved instalment schedules, balances, due dates, payment history and downloadable receipts.
 - Enquiries, inspection requests, support and downloadable legal/customer documents.
 - Staff/admin tools for plots, customers, allocations, payments, documents and audit logs.
