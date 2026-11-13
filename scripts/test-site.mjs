@@ -20,7 +20,7 @@ const required = [
   'property-detail',
   'paymentPlanner',
   'detailEnquire',
-  'buyer due diligence',
+  'Buyer due diligence',
   'unverified reference information'
   'availabilityFilter',
   'menuToggle',
