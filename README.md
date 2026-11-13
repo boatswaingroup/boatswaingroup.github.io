@@ -103,3 +103,10 @@ The account modal now includes forgot-password and reset-link journeys. The back
 - Render Blueprint now includes the SMTP and HTTPS reset URL environment keys required for password recovery.
 - See [API deployment readiness](docs/API_DEPLOYMENT_READINESS.md) for the staging/production checklist, secure secret configuration, CORS requirements and release gates.
 - The Blueprint has not been applied; no Render services, databases, email credentials or payment provider have been provisioned.
+
+
+## Imported Winning-game source foundation
+
+A complete snapshot of `demtaiwo1-eng/Winning-game-` has been copied into `foundation/Winning-game/` on this development branch. The snapshot includes the upstream repository files and assets (3,864 upstream tree entries), plus a Boatswain import note. The upstream repository itself has not been modified. The copy is retained as a reference foundation; its EPHINTA/event-commerce screens and workflows are not the Boatswain product.
+
+Useful candidate patterns include React/TypeScript, Express, PostgreSQL/Prisma, authentication, listings/enquiries, payment-ledger patterns, notifications and audit logs. Review the nested source workflows, dependency advisories, licences/notices, and remove generated or unnecessary dependencies from any production build. Never run imported payment, signing, mobile release or backup workflows against production without a separate review.
