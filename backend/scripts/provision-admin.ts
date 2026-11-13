@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(\`Missing required environment variable: \${name}\`);
+  if (!value) throw new Error('Missing required environment variable: ' + name);
   return value;
 }
 
@@ -36,13 +36,13 @@ async function main() {
     select: { id: true, fullName: true, email: true, role: true, createdAt: true }
   });
 
-  process.stdout.write(\`Administrator created: \${admin.email} (id: \${admin.id})\n\`);
+  process.stdout.write('Administrator created: ' + admin.email + ' (id: ' + admin.id + ')\n');
   process.stdout.write('Store the credentials securely and remove the bootstrap environment variables.\n');
 }
 
 main()
   .catch(error => {
-    process.stderr.write(\`Administrator provisioning failed: \${error instanceof Error ? error.message : 'Unknown error'}\n\`);
+    process.stderr.write('Administrator provisioning failed: ' + (error instanceof Error ? error.message : 'Unknown error') + '\n');
     process.exitCode = 1;
   })
   .finally(async () => {
