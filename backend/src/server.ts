@@ -187,7 +187,7 @@ app.post('/api/auth/password-reset/request', asyncRoute(async (req, res) => {
       if (!configuredUrl) throw new Error('PASSWORD_RESET_URL is not configured');
       const resetUrl = new URL(configuredUrl);
       if (resetUrl.protocol !== 'https:' && resetUrl.hostname !== 'localhost') throw new Error('PASSWORD_RESET_URL must use HTTPS outside local development');
-      resetUrl.searchParams.set('passwordResetToken', rawToken);
+      resetUrl.hash = new URLSearchParams({ passwordResetToken: rawToken }).toString();
       void passwordResetEmailSender(customer.email, resetUrl.toString()).catch(async () => {
         await prisma.passwordResetToken.delete({ where: { id: resetToken.id } }).catch(() => undefined);
         console.error('Password reset email delivery failed; verify the configured email service.');
