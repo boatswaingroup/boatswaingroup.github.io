@@ -85,6 +85,17 @@ model Customer {
   paymentPlans PaymentPlan[]
   payments Payment[]
   ledgerEntries LedgerEntry[]
+  sessions Session[]
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  @@index([customerId, revokedAt, expiresAt])
 }
 
 model Estate {
