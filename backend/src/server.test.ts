@@ -198,6 +198,48 @@ describe('Boatswain Property API', () => {
     expect(expired.status).toBe(400);
     setPasswordResetEmailSenderForTests(null);
   });
+
+  it('returns generic password recovery responses and consumes a hashed one-time token', async () => {
+    const email = `${suffix}-password-reset@example.test`;
+    const oldSession = await register(email);
+    let deliveredUrl = '';
+    process.env.PASSWORD_RESET_URL = 'https://boatswaingroup.github.io/';
+    setPasswordResetEmailSenderForTests(async (recipient, url) => { expect(recipient).toBe(email); deliveredUrl = url; });
+    const known = await request(app).post('/api/auth/password-reset/request').send({ email });
+    const unknown = await request(app).post('/api/auth/password-reset/request').send({ email: `${suffix}-unknown@example.test` });
+    expect(known.status).toBe(202);
+    expect(unknown.status).toBe(202);
+    expect(known.body.message).toBe(unknown.body.message);
+    const rawToken = new URL(deliveredUrl).searchParams.get('passwordResetToken');
+    expect(rawToken).toMatch(/^[a-f0-9]{64}$/);
+    const tokenHash = createHash('sha256').update(rawToken!).digest('hex');
+    const stored = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+    expect(stored).not.toBeNull();
+    expect(stored!.tokenHash).not.toBe(rawToken);
+    const reset = await request(app).post('/api/auth/password-reset/confirm').send({ token: rawToken, password: 'sample-value-123456' });
+    expect(reset.status).toBe(200);
+    expect((await request(app).get('/api/me').set('Authorization', `Bearer ${oldSession}`)).status).toBe(401);
+    expect((await request(app).post('/api/auth/login').send({ email, password: 'sample-value-123456' })).status).toBe(200);
+    const reused = await request(app).post('/api/auth/password-reset/confirm').send({ token: rawToken, password: 'another-sample-123456' });
+    expect(reused.status).toBe(400);
+    setPasswordResetEmailSenderForTests(null);
+  });
+
+  it('rejects expired password recovery links', async () => {
+    const email = `${suffix}-expired-reset@example.test`;
+    await register(email);
+    let deliveredUrl = '';
+    process.env.PASSWORD_RESET_URL = 'https://boatswaingroup.github.io/';
+    setPasswordResetEmailSenderForTests(async (_recipient, url) => { deliveredUrl = url; });
+    const requested = await request(app).post('/api/auth/password-reset/request').send({ email });
+    expect(requested.status).toBe(202);
+    const rawToken = new URL(deliveredUrl).searchParams.get('passwordResetToken')!;
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    await prisma.passwordResetToken.update({ where: { tokenHash }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    const expired = await request(app).post('/api/auth/password-reset/confirm').send({ token: rawToken, password: 'sample-value-123456' });
+    expect(expired.status).toBe(400);
+    setPasswordResetEmailSenderForTests(null);
+  });
   it('revokes the current session and all sessions on request', async () => {
     const current = await register(`${suffix}-logout@example.test`);
     const logout = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${current}`);
