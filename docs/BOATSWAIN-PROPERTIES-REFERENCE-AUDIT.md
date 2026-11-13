@@ -1,49 +1,89 @@
 # Boatswain Properties reference-site audit
 
-**Audit date:** 2026-11-11  
+**Audit date:** 2026-11-13  
 **Source:** https://www.boatswainproperties.com/  
-**Method:** Playwright/Chromium, public pages only, robots.txt checked, no login or form submission.  
-**Result:** 20 pages visited, 20 HTTP 200 responses, zero crawl errors. Seven additional links remained queued when the configured 20-page limit was reached.
+**Method:** Read-only public-browser review of the homepage, property catalogue and six property detail pages, services, about, contact, subscribe and account route structure. No login, form submission, purchase or payment was performed.
 
-The complete screenshots and JSON page snapshots are retained as the GitHub Actions artifact named `boatswain-reference-audit` on the repository-checks workflow run. The artifact is temporary and has a 14-day retention period.
+## Company identity and contact information observed
 
-## Observed information architecture
+- Company name: Boatswain Nigeria Limited.
+- Registration number displayed: RC 942549.
+- Trading name: Boatswain Properties & Wood Crafts.
+- Tagline: “Invest Today... Own Tomorrow.”
+- Operating region: Oyo State, Nigeria.
+- Logo reference: https://www.boatswainproperties.com/media/boatlogo.png
+- Phone: 08033635755 and 08023882003.
+- Email: boatswainproperties@gmail.com.
+- WhatsApp: https://wa.me/2348033635755
+- Office addresses displayed:
+  - 27, Akinpelu Street, Agberu Avenue, Off ICAST, Elebu, Ibadan, Oyo State.
+  - 2, Ladoke Akintola Avenue, Off Aare Avenue, New Bodija Estate, Ibadan.
 
-- Home, About, Services, Properties and Contact.
-- Customer registration, login and password-reset routes.
-- Property catalogue with six visible listings:
-  - GreenFarm Settlement, Omi Adio
-  - Moniya Gateway Estate
-  - Lagos-Ibadan Expressway Plots
-  - Boatswain Royal Estate, Ido
-  - Ago-Are Commercial Plots
-  - Ona Ara Residential Plots
-- Property filters for keyword, location, property type, availability and minimum/maximum price.
-- Individual property detail pages.
-- A property-interest/subscribe flow with customer details, selected property, interest type, referral source, payment plan and account password fields.
-- The site describes full-payment and six-month plan options.
-- Main page presents 300 SQM, 500 SQM and 1-acre farm settlement options, estate features, location information and a crypto-payment section.
+Verify all corporate and contact details with company management before treating them as legally authoritative.
 
-## Important implementation observations
+## Public property catalogue observed
 
-1. Public registration and login pages are present. The browser audit only inspected their form structure; it did not submit credentials or test account creation.
-2. The property-interest form is not proof that a payment has been made or that a plot has been reserved.
-3. The GreenFarm detail page explicitly marks some property information as demo placeholder content. Verify all plot dimensions, prices, titles, location claims, infrastructure and availability with the business before publishing them as facts.
-4. The website shows a six-month plan, while the Boatswain project brief separately specifies a ₦350,000 deposit. The precise deposit rule, whether it applies to every property, and how the balance is scheduled must be confirmed and implemented server-side.
-5. The home page advertises a crypto payment option. Do not activate this or any other payment rail without approved business policy, provider credentials, secure server-side verification, reconciliation and refund procedures.
-6. The audit captured image references and screenshots for design assessment. It did not download or transfer photographs, fonts, scripts or other protected assets. Reuse only assets Boatswain owns or is licensed to use.
+| Property | Displayed location | Displayed size | Advertised price range | Publicly stated plan/status |
+|---|---|---:|---:|---|
+| GreenFarm Settlement, Omi Adio | Omi Adio LGA, Ibadan | 1 acre | ₦3.8m–₦5.8m | Available; full payment or six-month plan |
+| Moniya Gateway Estate | Moniya, Ibadan | 300 sqm | ₦2m–₦2.8m | Coming soon; payment plans not currently available |
+| Lagos-Ibadan Expressway Plots | Lagos-Ibadan Express Road, Oyo State | 500 sqm | ₦2.8m–₦4.8m | Available; full payment or six-month plan |
+| Boatswain Royal Estate, Ido | Ido LGA, Ibadan | 300 sqm | ₦2m–₦2.8m | Listed; full payment or six-month plan |
+| Ago-Are Commercial Plots | Ago-Are, Ona Ara LGA | 500 sqm | ₦2.8m–₦4.8m | Listed; full payment or six-month plan |
+| Ona Ara Residential Plots | Ona Ara LGA, Ibadan | 500 sqm | ₦2.8m–₦4.8m | Listed; full payment or six-month plan |
+
+These are aggregate advertised ranges and public-page status labels, not guaranteed quotes or real-time stock. The audit did not independently verify plot-by-plot availability, title, survey, allocation or infrastructure claims.
+
+## Payment and customer-account observations
+
+- Full payment and six-month plans are displayed for most listings; Moniya Gateway Estate is explicitly marked as not currently having payment plans available.
+- Exact deposit amounts, monthly instalment amounts, interest, fees and total price differences were **not explicitly published** on the pages inspected.
+- The public subscribe flow requests name, email, phone, message, property interest, interest type, referral source and payment plan.
+- Public registration, login and password-reset routes exist. Their authenticated dashboard functions were not inspected because no account was accessed.
+- A homepage crypto-payment reference was observed, but no verified provider, supported asset list, settlement terms or payment procedure was established. Do not implement a crypto payment rail without explicit business approval and legal/provider review.
+
+## Services and agricultural scope observed
+
+The Services page describes estate development, property sales, residential and mixed-use estate plots, farm plots, agricultural investment opportunities, property/project marketing and property advisory. GreenFarm Settlement is the visible one-acre farm settlement offering.
+
+## Routes observed
+
+- https://www.boatswainproperties.com/
+- https://www.boatswainproperties.com/about/
+- https://www.boatswainproperties.com/services/
+- https://www.boatswainproperties.com/properties/
+- https://www.boatswainproperties.com/contact/
+- https://www.boatswainproperties.com/subscribe/
+- https://www.boatswainproperties.com/accounts/register/
+- https://www.boatswainproperties.com/accounts/login/
+- https://www.boatswainproperties.com/accounts/password-reset/
+- https://www.boatswainproperties.com/properties/greenfarm-settlement-omi-adio/
+- https://www.boatswainproperties.com/properties/moniya-gateway-estate/
+- https://www.boatswainproperties.com/properties/lagos-ibadan-expressway-plots/
+- https://www.boatswainproperties.com/properties/boatswain-royal-estate-ido/
+- https://www.boatswainproperties.com/properties/ago-are-commercial-plots/
+- https://www.boatswainproperties.com/properties/ona-ara-residential-plots/
+
+## Important caveats and implementation rules
+
+1. The public site contains property-specific descriptions and photos. Confirm that every factual claim, image, price, plot size and status remains current before publishing it as a business commitment.
+2. A public enquiry or subscribe form is not proof of payment, ownership or a reserved plot.
+3. The exact deposit and instalment amounts are unpublished. Do not hard-code the ₦350,000, ₦550,000 or ₦1,100,000 figures found in earlier internal notes as official prices. Remove them from public UI until approved in writing.
+4. The six-month plan must be represented by an approved, versioned written offer. The app must not infer monthly instalments from an aggregate advertised price range.
+5. No crypto or other payment rail should be activated until the business approves the provider, settlement process, compliance requirements, refunds and reconciliation.
+6. Use only company-owned or properly licensed photos, logos, copy and documents. This audit records public references; it does not grant reuse rights.
 
 ## Foundation reuse decision
 
-The authorized `demtaiwo1-eng/Winning-game-` source is a separate ESS/event-commerce application, not a property-management application. It contains reusable technical patterns worth testing (authentication, payments, vendor marketplace, notifications, API, database migrations and automated tests), but also unrelated event, KYC, Android/iOS and operational workflows. It should be integrated selectively after automated compatibility checks and a security/domain review. Do not enable upstream deployment, signing, backup, account-deactivation or payment workflows in the Boatswain repository by default.
+The authorized `demtaiwo1-eng/Winning-game-` source is an ESS/event-services application, not a property-management application. Its React/TypeScript, Express API, PostgreSQL/Prisma, auth, listing/enquiry, payment-ledger, notification and audit patterns may be reusable after review. Event, guest, RSVP, event-booking, EPHINTA brand, audio and unrelated mobile workflows must not be exposed as Boatswain product features without deliberate adaptation. The source repository must remain untouched.
 
 ## Next implementation priorities
 
-1. Confirm authoritative property catalogue and exact plot inventory, plot identifiers, prices, dimensions, site plans and availability.
-2. Define the ₦350,000 deposit rule and installment schedule for each offering.
-3. Build secure customer authentication, admin/finance roles, plot reservation locking and a transaction ledger.
-4. Integrate the selected Nigerian payment provider with signed webhook verification and reconciliation; keep secrets out of frontend code.
-5. Add legal terms, privacy notices, sale/allocation documents and receipt generation after business/legal review.
-6. Test registration, reservation, payment callbacks, refunds, double-booking prevention, document access and admin permissions end-to-end.
+1. Obtain authoritative estate/plot inventory, plot identifiers, exact dimensions, current availability, price sheets, survey/title evidence and site maps from the company.
+2. Approve the deposit and six-month plan policy in writing for each property.
+3. Complete API hosting, database production configuration, secure admin provisioning, email delivery, session security and backup/restore.
+4. Complete payment-provider selection and sandbox integration with signed webhook verification, idempotency, immutable ledger, reconciliation, refunds and receipts.
+5. Complete legal terms, privacy notices, sales/allocation documents and data-retention review.
+6. Pass end-to-end tests for registration, plot holds, double-booking prevention, payment events, refunds, document access and staff permissions before launch.
 
-This audit describes what was publicly visible during the crawl. It is not a security assessment or confirmation that any live payment or account flow is operational.
+This report records what was publicly visible on 13 November 2026. It is not a title search, legal opinion, security assessment or proof that live payment/account flows are operational.
