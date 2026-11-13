@@ -67,6 +67,31 @@ function requireStaff(req: AuthedRequest, res: Response, next: NextFunction) {
   }
   next();
 }
+
+async function releaseExpiredReservations(): Promise<void> {
+  const now = new Date();
+  await prisma.$transaction(async tx => {
+    const expired = await tx.reservation.findMany({
+      where: { status: ReservationStatus.ACTIVE, expiresAt: { lte: now } },
+      select: { id: true, plotId: true }
+    });
+    if (expired.length === 0) return;
+    const reservationIds = expired.map(item => item.id);
+    const plotIds = [...new Set(expired.map(item => item.plotId))];
+    await tx.reservation.updateMany({
+      where: { id: { in: reservationIds }, status: ReservationStatus.ACTIVE, expiresAt: { lte: now } },
+      data: { status: ReservationStatus.EXPIRED }
+    });
+    await tx.plot.updateMany({
+      where: {
+        id: { in: plotIds },
+        status: PlotStatus.RESERVED,
+        reservations: { none: { status: ReservationStatus.ACTIVE, expiresAt: { gt: now } } }
+      },
+      data: { status: PlotStatus.AVAILABLE }
+    });
+  });
+}
 const registerSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email().max(254).transform(v => v.toLowerCase()),
@@ -246,6 +271,7 @@ app.get('/api/me', authenticate, asyncRoute(async (req, res) => {
 }));
 
 app.get('/api/me/reservations', authenticate, asyncRoute(async (req, res) => {
+  await releaseExpiredReservations();
   const reservations = await prisma.reservation.findMany({
     where: { customerId: req.user!.id },
     orderBy: { createdAt: 'desc' },
@@ -262,11 +288,13 @@ app.get('/api/me/reservations', authenticate, asyncRoute(async (req, res) => {
 }));
 
 app.get('/api/estates', asyncRoute(async (_req, res) => {
+  await releaseExpiredReservations();
   const estates = await prisma.estate.findMany({ where: { published: true }, orderBy: { name: 'asc' }, include: { _count: { select: { plots: { where: { status: PlotStatus.AVAILABLE } } } } } });
   return res.json({ estates });
 }));
 
 app.get('/api/estates/:slug/plots', asyncRoute(async (req, res) => {
+  await releaseExpiredReservations();
   const estate = await prisma.estate.findUnique({ where: { slug: req.params.slug } });
   if (!estate || !estate.published) return res.status(404).json({ error: 'Estate not found' });
   const plots = await prisma.plot.findMany({ where: { estateId: estate.id, status: PlotStatus.AVAILABLE }, select: { id: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true }, orderBy: { plotCode: 'asc' } });
@@ -282,6 +310,7 @@ app.post('/api/enquiries', asyncRoute(async (req, res) => {
 }));
 
 app.get('/api/staff/estates', authenticate, requireAdmin, asyncRoute(async (_req, res) => {
+  await releaseExpiredReservations();
   const estates = await prisma.estate.findMany({
     orderBy: { createdAt: 'desc' },
     include: { plots: { orderBy: { plotCode: 'asc' }, select: { id: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } } }
