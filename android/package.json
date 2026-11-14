@@ -1,0 +1,19 @@
+{
+  "name": "@boatswain/group-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Boatswain Group Android wrapper built with Capacitor",
+  "scripts": {
+    "build:web": "node -e \"require('fs').mkdirSync('www',{recursive:true});require('fs').copyFileSync('../index.html','www/index.html')\"",
+    "android:add": "cap add android",
+    "android:sync": "npm run build:web && cap sync android",
+    "android:debug": "cd android && gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}
