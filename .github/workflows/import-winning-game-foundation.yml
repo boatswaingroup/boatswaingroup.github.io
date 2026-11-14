@@ -1,0 +1,47 @@
+name: Import complete Winning-game foundation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Boatswain development branch
+        uses: actions/checkout@v4
+        with:
+          ref: project/boatswain-platform-foundation
+          fetch-depth: 0
+      - name: Clone and copy the complete upstream repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/demtaiwo1-eng/Winning-game-.git /tmp/winning-game
+          mkdir -p foundation/Winning-game
+          tar --exclude=.git -C /tmp/winning-game -cf - . | tar -C foundation/Winning-game -xf -
+          cat > foundation/Winning-game/BOATSWAIN-FOUNDATION-NOTE.md <<'NOTE'
+          # Imported foundation snapshot
+
+          Complete snapshot of the authorized demtaiwo1-eng/Winning-game- source repository.
+          The original upstream repository is untouched. This is a technical reference foundation,
+          not the Boatswain product UI. Review dependencies, licences/notices, secrets, workflows,
+          security posture and deployment assumptions before adapting or executing any component.
+          NOTE
+      - name: Commit the foundation snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add foundation/Winning-game
+          if git diff --cached --quiet; then
+            echo "Foundation snapshot is already current."
+            exit 0
+          fi
+          git commit -m "chore: refresh complete Winning-game foundation"
+          git fetch origin project/boatswain-platform-foundation
+          git rebase origin/project/boatswain-platform-foundation
+          git push origin HEAD:project/boatswain-platform-foundation

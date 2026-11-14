@@ -21,10 +21,21 @@ jobs:
         uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
+      - name: Prepare public website bundle only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public-site
+          cp index.html public-site/index.html
+          cp 404.html public-site/404.html
+          touch public-site/.nojekyll
+          test ! -e public-site/backend
+          test ! -e public-site/foundation
+          test ! -e public-site/docs
       - name: Upload static website
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: public-site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

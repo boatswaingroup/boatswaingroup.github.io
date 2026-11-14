@@ -1,0 +1,491 @@
+import 'dotenv/config';
+import express, { NextFunction, Request, Response } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { Prisma, PrismaClient, CustomerRole, PlotStatus, ReservationStatus } from '@prisma/client';
+import { z } from 'zod';
+import { pathToFileURL } from 'node:url';
+import { createHash, randomBytes } from 'node:crypto';
+import nodemailer from 'nodemailer';
+
+const required = ['DATABASE_URL', 'JWT_SECRET'] as const;
+for (const key of required) {
+  if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
+}
+if ((process.env.JWT_SECRET ?? '').length < 32) throw new Error('JWT_SECRET must contain at least 32 characters');
+
+export const prisma = new PrismaClient();
+export const app = express();
+app.disable('x-powered-by');
+app.use(helmet());
+app.use(cors({ origin: (process.env.CORS_ORIGIN ?? '').split(',').map(v => v.trim()).filter(Boolean), credentials: false }));
+app.use(express.json({ limit: '32kb' }));
+app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: 'draft-7', legacyHeaders: false }));
+app.use('/api/auth/password-reset/request', rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false }));
+app.use('/api/auth/password-reset/confirm', rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }));
+app.use('/api/enquiries', rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false }));
+
+type AuthUser = { id: string; role: CustomerRole; sessionId: string };
+type AuthedRequest = Request & { user?: AuthUser };
+const asyncRoute = (fn: (req: AuthedRequest, res: Response) => Promise<unknown>) =>
+  (req: Request, res: Response, next: NextFunction) => Promise.resolve(fn(req as AuthedRequest, res)).catch(next);
+
+function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
+  const token = req.header('authorization')?.replace(/^Bearer\s+/i, '');
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
+  let decoded: jwt.JwtPayload;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET!, { issuer: 'boatswain-property-api', audience: 'boatswain-web' }) as jwt.JwtPayload;
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired access token' });
+  }
+  if (typeof decoded.sub !== 'string' || typeof decoded.sid !== 'string') {
+    return res.status(401).json({ error: 'Invalid access token' });
+  }
+  void prisma.session.findUnique({
+    where: { id: decoded.sid },
+    include: { customer: { select: { id: true, role: true } } }
+  }).then(session => {
+    if (!session || session.customerId !== decoded.sub || session.revokedAt || session.expiresAt <= new Date()) {
+      return res.status(401).json({ error: 'Session is no longer active' });
+    }
+    req.user = { id: session.customer.id, role: session.customer.role, sessionId: session.id };
+    next();
+  }).catch(next);
+}
+function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
+  if (!req.user || req.user.role !== CustomerRole.ADMIN) return res.status(403).json({ error: 'Administrator access required' });
+  next();
+}
+function requireStaff(req: AuthedRequest, res: Response, next: NextFunction) {
+  const staffRoles = new Set<CustomerRole>([CustomerRole.ADMIN, CustomerRole.SALES, CustomerRole.FINANCE]);
+  if (!req.user || !staffRoles.has(req.user.role)) {
+    return res.status(403).json({ error: 'Staff access required' });
+  }
+  next();
+}
+
+async function releaseExpiredReservations(): Promise<void> {
+  const now = new Date();
+  await prisma.$transaction(async tx => {
+    const expired = await tx.reservation.findMany({
+      where: { status: ReservationStatus.ACTIVE, expiresAt: { lte: now } },
+      select: { id: true, plotId: true }
+    });
+    if (expired.length === 0) return;
+    const reservationIds = expired.map(item => item.id);
+    const plotIds = [...new Set(expired.map(item => item.plotId))];
+    await tx.reservation.updateMany({
+      where: { id: { in: reservationIds }, status: ReservationStatus.ACTIVE, expiresAt: { lte: now } },
+      data: { status: ReservationStatus.EXPIRED }
+    });
+    await tx.plot.updateMany({
+      where: {
+        id: { in: plotIds },
+        status: PlotStatus.RESERVED,
+        reservations: { none: { status: ReservationStatus.ACTIVE, expiresAt: { gt: now } } }
+      },
+      data: { status: PlotStatus.AVAILABLE }
+    });
+  });
+}
+const registerSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(254).transform(v => v.toLowerCase()),
+  phone: z.string().trim().min(7).max(24),
+  password: z.string().min(12).max(128)
+});
+const loginSchema = z.object({ email: z.string().email().transform(v => v.toLowerCase()), password: z.string().min(1).max(128) });
+const passwordResetRequestSchema = z.object({ email: z.string().trim().email().max(254).transform(v => v.toLowerCase()) });
+const passwordResetConfirmSchema = z.object({ token: z.string().regex(/^[a-f0-9]{64}$/i), password: z.string().min(12).max(128) });
+
+type PasswordResetEmailSender = (email: string, resetUrl: string) => Promise<void>;
+const defaultPasswordResetEmailSender: PasswordResetEmailSender = async (email, resetUrl) => {
+  const host = process.env.SMTP_HOST;
+  const from = process.env.SMTP_FROM;
+  if (!host || !from) throw new Error('SMTP password-reset delivery is not configured');
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+  const transport = nodemailer.createTransport({ host, port: Number(process.env.SMTP_PORT || 587), secure: process.env.SMTP_SECURE === 'true', auth: user && pass ? { user, pass } : undefined });
+  await transport.sendMail({
+    from, to: email, subject: 'Reset your Boatswain account password',
+    text: 'We received a request to reset your Boatswain account password. This link expires in 30 minutes and can only be used once:\n\n' + resetUrl + '\n\nIf you did not request this, you can ignore this email.',
+    html: '<p>We received a request to reset your Boatswain account password.</p><p><a href="' + resetUrl + '">Choose a new password</a></p><p>This link expires in 30 minutes and can only be used once. If you did not request this, you can ignore this email.</p>'
+  });
+};
+let passwordResetEmailSender: PasswordResetEmailSender = defaultPasswordResetEmailSender;
+export function setPasswordResetEmailSenderForTests(sender: PasswordResetEmailSender | null) { passwordResetEmailSender = sender ?? defaultPasswordResetEmailSender; }
+const estateCreateSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100),
+  location: z.string().trim().min(2).max(200),
+  description: z.string().trim().max(5000).optional(),
+  published: z.boolean().optional()
+});
+const plotCreateSchema = z.object({
+  plotCode: z.string().trim().min(1).max(40),
+  sizeSqm: z.number().int().positive().max(1000000).optional(),
+  priceKobo: z.string().regex(/^\d{1,18}$/).optional()
+});
+const plotUpdateSchema = z.object({
+  sizeSqm: z.number().int().positive().max(1000000).nullable().optional(),
+  priceKobo: z.string().regex(/^\d{1,18}$/).nullable().optional(),
+  status: z.nativeEnum(PlotStatus).optional()
+}).refine(value => Object.keys(value).length > 0, 'At least one field is required');
+const paymentPlanCreateSchema = z.object({
+  depositKobo: z.string().regex(/^\d{1,18}$/),
+  installmentCount: z.number().int().min(0).max(120),
+  intervalDays: z.number().int().min(1).max(365).optional()
+}).superRefine((value, ctx) => {
+  if (value.installmentCount > 0 && value.intervalDays === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['intervalDays'], message: 'An interval is required when instalments are enabled' });
+  }
+  if (value.installmentCount === 0 && value.intervalDays !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['intervalDays'], message: 'An interval is not used for a full-balance payment' });
+  }
+});
+
+async function issueSession(customer: { id: string; role: CustomerRole; fullName: string; email: string }) {
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  const session = await prisma.session.create({ data: { customerId: customer.id, expiresAt } });
+  const accessToken = jwt.sign({ sid: session.id }, process.env.JWT_SECRET!, {
+    subject: customer.id, expiresIn: '1h', issuer: 'boatswain-property-api', audience: 'boatswain-web'
+  });
+  return { customer: { id: customer.id, fullName: customer.fullName, email: customer.email, role: customer.role }, accessToken, tokenType: 'Bearer', expiresIn: 3600 };
+}
+
+const enquirySchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(254),
+  phone: z.string().trim().min(7).max(24),
+  interest: z.string().trim().min(2).max(100),
+  message: z.string().trim().min(5).max(3000),
+  contactConsent: z.literal(true)
+});
+
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'boatswain-property-api' }));
+app.get('/ready', asyncRoute(async (_req, res) => {
+  await prisma.$queryRaw`SELECT 1`;
+  res.json({ ok: true, database: 'connected' });
+}));
+
+app.post('/api/auth/register', asyncRoute(async (req, res) => {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid registration details', details: parsed.error.flatten() });
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  try {
+    const customer = await prisma.customer.create({ data: {
+      fullName: parsed.data.fullName, email: parsed.data.email, phone: parsed.data.phone, passwordHash
+    }, select: { id: true, fullName: true, email: true, role: true } });
+    const sessionResponse = await issueSession(customer);
+    return res.status(201).json(sessionResponse);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ error: 'An account with this email already exists' });
+    throw error;
+  }
+}));
+
+app.post('/api/auth/login', asyncRoute(async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid login details' });
+  const customer = await prisma.customer.findUnique({ where: { email: parsed.data.email } });
+  if (!customer || !(await bcrypt.compare(parsed.data.password, customer.passwordHash))) return res.status(401).json({ error: 'Email or password is incorrect' });
+  return res.json(await issueSession(customer));
+}));
+
+app.post('/api/auth/password-reset/request', asyncRoute(async (req, res) => {
+  const parsed = passwordResetRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Enter a valid email address' });
+  const startedAt = Date.now();
+  const genericMessage = 'If an account with that email exists, a password reset link will be sent.';
+  const customer = await prisma.customer.findUnique({ where: { email: parsed.data.email }, select: { id: true, email: true } });
+  if (customer) {
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const now = new Date();
+    await prisma.passwordResetToken.updateMany({ where: { customerId: customer.id, usedAt: null }, data: { usedAt: now } });
+    const resetToken = await prisma.passwordResetToken.create({ data: { customerId: customer.id, tokenHash, expiresAt: new Date(now.getTime() + 30 * 60 * 1000) } });
+    try {
+      const configuredUrl = process.env.PASSWORD_RESET_URL;
+      if (!configuredUrl) throw new Error('PASSWORD_RESET_URL is not configured');
+      const resetUrl = new URL(configuredUrl);
+      if (resetUrl.protocol !== 'https:' && resetUrl.hostname !== 'localhost') throw new Error('PASSWORD_RESET_URL must use HTTPS outside local development');
+      resetUrl.hash = new URLSearchParams({ passwordResetToken: rawToken }).toString();
+      void passwordResetEmailSender(customer.email, resetUrl.toString()).catch(async () => {
+        await prisma.passwordResetToken.delete({ where: { id: resetToken.id } }).catch(() => undefined);
+        console.error('Password reset email delivery failed; verify the configured email service.');
+      });
+    } catch {
+      await prisma.passwordResetToken.delete({ where: { id: resetToken.id } }).catch(() => undefined);
+      console.error('Password reset email delivery is unavailable; verify the configured email service.');
+    }
+  }
+  const minimumResponseMs = 250;
+  const remainingDelay = minimumResponseMs - (Date.now() - startedAt);
+  if (remainingDelay > 0) await new Promise(resolve => setTimeout(resolve, remainingDelay));
+  return res.status(202).json({ message: genericMessage });
+}));
+
+app.post('/api/auth/password-reset/confirm', asyncRoute(async (req, res) => {
+  const parsed = passwordResetConfirmSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'The reset link is invalid or has expired. Request a new link.' });
+  const tokenHash = createHash('sha256').update(parsed.data.token).digest('hex');
+  const token = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  const now = new Date();
+  if (!token || token.usedAt || token.expiresAt <= now) return res.status(400).json({ error: 'The reset link is invalid or has expired. Request a new link.' });
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  const completed = await prisma.$transaction(async tx => {
+    const claimed = await tx.passwordResetToken.updateMany({ where: { id: token.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
+    if (claimed.count !== 1) return false;
+    await tx.customer.update({ where: { id: token.customerId }, data: { passwordHash } });
+    await tx.session.updateMany({ where: { customerId: token.customerId, revokedAt: null }, data: { revokedAt: now } });
+    await tx.passwordResetToken.updateMany({ where: { customerId: token.customerId, id: { not: token.id }, usedAt: null }, data: { usedAt: now } });
+    return true;
+  });
+  if (!completed) return res.status(400).json({ error: 'The reset link is invalid or has expired. Request a new link.' });
+  return res.json({ message: 'Your password has been reset. You can now sign in with your new password.' });
+}));
+app.post('/api/auth/logout', authenticate, asyncRoute(async (req, res) => {
+  await prisma.session.updateMany({
+    where: { id: req.user!.sessionId, customerId: req.user!.id, revokedAt: null },
+    data: { revokedAt: new Date() }
+  });
+  return res.json({ ok: true, message: 'This session has been revoked' });
+}));
+
+app.post('/api/auth/logout-all', authenticate, asyncRoute(async (req, res) => {
+  const result = await prisma.session.updateMany({
+    where: { customerId: req.user!.id, revokedAt: null },
+    data: { revokedAt: new Date() }
+  });
+  return res.json({ ok: true, revokedSessions: result.count });
+}));
+
+app.get('/api/me', authenticate, asyncRoute(async (req, res) => {
+  const customer = await prisma.customer.findUnique({ where: { id: req.user!.id }, select: { id: true, fullName: true, email: true, phone: true, role: true, createdAt: true } });
+  if (!customer) return res.status(404).json({ error: 'Customer account not found' });
+  return res.json({ customer });
+}));
+
+app.get('/api/me/reservations', authenticate, asyncRoute(async (req, res) => {
+  await releaseExpiredReservations();
+  const reservations = await prisma.reservation.findMany({
+    where: { customerId: req.user!.id },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    select: {
+      id: true, status: true, expiresAt: true, createdAt: true,
+      plot: { select: { plotCode: true, sizeSqm: true, priceKobo: true, estate: { select: { name: true, location: true } } } }
+    }
+  });
+  return res.json({ reservations: reservations.map(item => ({
+    ...item,
+    plot: { ...item.plot, priceKobo: item.plot.priceKobo?.toString() ?? null }
+  })) });
+}));
+
+app.get('/api/estates', asyncRoute(async (_req, res) => {
+  await releaseExpiredReservations();
+  const estates = await prisma.estate.findMany({ where: { published: true }, orderBy: { name: 'asc' }, include: { _count: { select: { plots: { where: { status: PlotStatus.AVAILABLE } } } } } });
+  return res.json({ estates });
+}));
+
+app.get('/api/estates/:slug/plots', asyncRoute(async (req, res) => {
+  await releaseExpiredReservations();
+  const estate = await prisma.estate.findUnique({ where: { slug: req.params.slug } });
+  if (!estate || !estate.published) return res.status(404).json({ error: 'Estate not found' });
+  const plots = await prisma.plot.findMany({ where: { estateId: estate.id, status: PlotStatus.AVAILABLE }, select: { id: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true }, orderBy: { plotCode: 'asc' } });
+  return res.json({ estate: { id: estate.id, name: estate.name, slug: estate.slug }, plots: plots.map(plot => ({ ...plot, priceKobo: plot.priceKobo?.toString() ?? null })) });
+}));
+
+app.post('/api/enquiries', asyncRoute(async (req, res) => {
+  const parsed = enquirySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid enquiry details', details: parsed.error.flatten() });
+  const customerId = (req as AuthedRequest).user?.id;
+  const enquiry = await prisma.enquiry.create({ data: { ...parsed.data, customerId } });
+  return res.status(201).json({ enquiry: { id: enquiry.id, createdAt: enquiry.createdAt }, message: 'Enquiry received' });
+}));
+
+app.get('/api/staff/estates', authenticate, requireAdmin, asyncRoute(async (_req, res) => {
+  await releaseExpiredReservations();
+  const estates = await prisma.estate.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: { plots: { orderBy: { plotCode: 'asc' }, select: { id: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } } }
+  });
+  return res.json({ estates: estates.map(estate => ({
+    ...estate, plots: estate.plots.map(plot => ({ ...plot, priceKobo: plot.priceKobo?.toString() ?? null }))
+  })) });
+}));
+
+app.post('/api/staff/estates', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = estateCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid estate details', details: parsed.error.flatten() });
+  try {
+    const estate = await prisma.estate.create({ data: parsed.data });
+    return res.status(201).json({ estate });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ error: 'An estate with this slug already exists' });
+    throw error;
+  }
+}));
+
+app.post('/api/staff/estates/:estateId/plots', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = plotCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid plot details', details: parsed.error.flatten() });
+  const estate = await prisma.estate.findUnique({ where: { id: req.params.estateId } });
+  if (!estate) return res.status(404).json({ error: 'Estate not found' });
+  try {
+    const plot = await prisma.plot.create({ data: {
+      estateId: estate.id, plotCode: parsed.data.plotCode, sizeSqm: parsed.data.sizeSqm,
+      priceKobo: parsed.data.priceKobo === undefined ? null : BigInt(parsed.data.priceKobo)
+    }, select: { id: true, estateId: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } });
+    return res.status(201).json({ plot: { ...plot, priceKobo: plot.priceKobo?.toString() ?? null } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ error: 'That plot code already exists in this estate' });
+    throw error;
+  }
+}));
+
+app.patch('/api/staff/plots/:plotId', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = plotUpdateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid plot update', details: parsed.error.flatten() });
+  const current = await prisma.plot.findUnique({ where: { id: req.params.plotId } });
+  if (!current) return res.status(404).json({ error: 'Plot not found' });
+  if (parsed.data.status && parsed.data.status !== current.status) {
+    const activeReservation = await prisma.reservation.findFirst({
+      where: { plotId: current.id, status: ReservationStatus.ACTIVE, expiresAt: { gt: new Date() } },
+      select: { id: true }
+    });
+    if (activeReservation) return res.status(409).json({ error: 'A plot with an active customer reservation cannot change status' });
+  }
+  const data: Prisma.PlotUpdateInput = {};
+  if (parsed.data.sizeSqm !== undefined) data.sizeSqm = parsed.data.sizeSqm;
+  if (parsed.data.priceKobo !== undefined) data.priceKobo = parsed.data.priceKobo === null ? null : BigInt(parsed.data.priceKobo);
+  if (parsed.data.status !== undefined) data.status = parsed.data.status;
+  const plot = await prisma.plot.update({ where: { id: current.id }, data, select: { id: true, estateId: true, plotCode: true, sizeSqm: true, priceKobo: true, status: true } });
+  return res.json({ plot: { ...plot, priceKobo: plot.priceKobo?.toString() ?? null } });
+}));
+
+app.post('/api/staff/reservations/:reservationId/payment-plan', authenticate, requireAdmin, asyncRoute(async (req, res) => {
+  const parsed = paymentPlanCreateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Invalid payment plan details', details: parsed.error.flatten() });
+  const reservation = await prisma.reservation.findUnique({
+    where: { id: req.params.reservationId },
+    include: { plot: true }
+  });
+  if (!reservation || reservation.status !== ReservationStatus.ACTIVE || reservation.expiresAt <= new Date()) {
+    return res.status(409).json({ error: 'A current active plot reservation is required to create a payment plan' });
+  }
+  if (reservation.plot.status !== PlotStatus.RESERVED || reservation.plot.priceKobo === null) {
+    return res.status(409).json({ error: 'The reserved plot must have an approved price before a plan can be created' });
+  }
+  const totalPriceKobo = reservation.plot.priceKobo;
+  const depositDueKobo = BigInt(parsed.data.depositKobo);
+  if (depositDueKobo > totalPriceKobo) return res.status(400).json({ error: 'Deposit cannot exceed the approved plot price' });
+  if (parsed.data.installmentCount === 0 && depositDueKobo !== totalPriceKobo) {
+    return res.status(400).json({ error: 'A plan without instalments must collect the full approved price as its deposit due' });
+  }
+  if (parsed.data.installmentCount > 0 && depositDueKobo === totalPriceKobo) {
+    return res.status(400).json({ error: 'Instalments cannot be added when the full price is due as the deposit' });
+  }
+  const remaining = totalPriceKobo - depositDueKobo;
+  const count = BigInt(parsed.data.installmentCount);
+  const baseAmount = count > 0n ? remaining / count : 0n;
+  const remainder = count > 0n ? remaining % count : 0n;
+  const now = new Date();
+  const installments = Array.from({ length: parsed.data.installmentCount }, (_, index) => ({
+    sequenceNumber: index + 1,
+    amountKobo: baseAmount + (BigInt(index) < remainder ? 1n : 0n),
+    dueAt: new Date(now.getTime() + (parsed.data.intervalDays! * (index + 1) * 24 * 60 * 60 * 1000))
+  }));
+  try {
+    const plan = await prisma.paymentPlan.create({
+      data: {
+        reservationId: reservation.id,
+        customerId: reservation.customerId,
+        totalPriceKobo,
+        depositDueKobo,
+        installmentCount: parsed.data.installmentCount,
+        intervalDays: parsed.data.intervalDays ?? null,
+        installments: { create: installments }
+      },
+      include: { installments: { orderBy: { sequenceNumber: 'asc' } } }
+    });
+    return res.status(201).json({ paymentPlan: {
+      ...plan,
+      totalPriceKobo: plan.totalPriceKobo.toString(),
+      depositDueKobo: plan.depositDueKobo.toString(),
+      installments: plan.installments.map(item => ({ ...item, amountKobo: item.amountKobo.toString() }))
+    } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: 'A payment plan already exists for this reservation' });
+    }
+    throw error;
+  }
+}));
+
+app.get('/api/me/payment-plans', authenticate, asyncRoute(async (req, res) => {
+  const plans = await prisma.paymentPlan.findMany({
+    where: { customerId: req.user!.id },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      reservation: { select: { id: true, plot: { select: { plotCode: true, sizeSqm: true, estate: { select: { name: true } } } } } },
+      installments: { orderBy: { sequenceNumber: 'asc' } },
+      ledgerEntries: { orderBy: { createdAt: 'asc' } }
+    }
+  });
+  return res.json({ paymentPlans: plans.map(plan => ({
+    ...plan,
+    totalPriceKobo: plan.totalPriceKobo.toString(),
+    depositDueKobo: plan.depositDueKobo.toString(),
+    installments: plan.installments.map(item => ({ ...item, amountKobo: item.amountKobo.toString() })),
+    ledgerEntries: plan.ledgerEntries.map(entry => ({ ...entry, amountKobo: entry.amountKobo.toString() }))
+  })) });
+}));
+
+app.get('/api/staff/enquiries', authenticate, requireStaff, asyncRoute(async (_req, res) => {
+  const enquiries = await prisma.enquiry.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
+  return res.json({ enquiries });
+}));
+
+app.post('/api/plots/:plotId/reservations', authenticate, asyncRoute(async (req, res) => {
+  const plotId = req.params.plotId;
+  const now = new Date();
+  let result: { id: string; plotId: string; status: ReservationStatus; expiresAt: Date } | null;
+  try {
+    result = await prisma.$transaction(async tx => {
+    const expired = await tx.reservation.findMany({ where: { status: ReservationStatus.ACTIVE, expiresAt: { lte: now } }, select: { id: true, plotId: true } });
+    if (expired.length) {
+      await tx.reservation.updateMany({ where: { id: { in: expired.map(r => r.id) } }, data: { status: ReservationStatus.EXPIRED } });
+      await tx.plot.updateMany({ where: { id: { in: expired.map(r => r.plotId) }, status: PlotStatus.RESERVED }, data: { status: PlotStatus.AVAILABLE } });
+    }
+    const changed = await tx.plot.updateMany({ where: { id: plotId, status: PlotStatus.AVAILABLE, estate: { published: true } }, data: { status: PlotStatus.RESERVED } });
+    if (changed.count !== 1) return null;
+    return tx.reservation.create({ data: { plotId, customerId: req.user!.id, expiresAt: new Date(now.getTime() + 20 * 60 * 1000) }, select: { id: true, plotId: true, status: true, expiresAt: true } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return res.status(409).json({ error: 'This plot was reserved by another customer. Refresh the plot list.' });
+    }
+    throw error;
+  }
+  if (!result) return res.status(409).json({ error: 'This plot is not currently available. Refresh the plot list.' });
+  return res.status(201).json({ reservation: result, message: 'Plot held for 20 minutes. No payment has been taken.' });
+}));
+
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('API request failed', error);
+  return res.status(500).json({ error: 'An unexpected server error occurred' });
+});
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const port = Number(process.env.PORT || 4000);
+  const server = app.listen(port, () => console.log(`Boatswain Property API listening on ${port}`));
+  const shutdown = async () => { server.close(); await prisma.$disconnect(); };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}

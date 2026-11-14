@@ -1,0 +1,345 @@
+name: EPHINTA Production-Signed Android APK
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ephinta-production-apk.yml"
+      - ".github/workflows/initialize-ephinta-android-signing.yml"
+      - "scripts/complete-production-apk.sh"
+      - "scripts/setup-android-signing-github.sh"
+  workflow_dispatch:
+    inputs:
+      minimum_version_code:
+        description: "Minimum Android versionCode (must exceed Build 869)"
+        required: true
+        default: "870"
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ephinta-production-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-production-workflow:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release workflow and helper scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ephinta-production-apk.yml", aliases: true)'
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/initialize-ephinta-android-signing.yml", aliases: true)'
+          bash -n scripts/setup-android-signing-github.sh
+          bash -n scripts/complete-production-apk.sh
+          bash -n scripts/verify-protected-869-signing-identity.sh
+          bash -n eventsss123/eventsss-main/scripts/complete-ephinta-869-update.sh
+          grep -q 'secrets.ANDROID_KEYSTORE_BASE64' .github/workflows/ephinta-production-apk.yml
+          grep -q 'vars.ANDROID_CERT_SHA256' .github/workflows/ephinta-production-apk.yml
+
+  build-production-apk:
+    if: ${{ github.event_name != 'pull_request' }}
+    name: Build, sign and verify production APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: eventsss123/eventsss-main
+    env:
+      VITE_API_URL: ${{ vars.VITE_API_URL || 'https://ephinta-wss.onrender.com/api/v1' }}
+      VITE_UPDATE_URL: ${{ format('{0}/app-updates', vars.VITE_API_URL || 'https://ephinta-wss.onrender.com/api/v1') }}
+      VITE_APP_VERSION: ${{ github.sha }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: eventsss123/eventsss-main/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Validate production release configuration
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          EXPECTED_CERT: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD EXPECTED_CERT; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required GitHub Actions configuration: $name. Add the Android signing secrets and ANDROID_CERT_SHA256 repository variable before publishing a production APK."
+              exit 1
+            fi
+          done
+          case "$VITE_API_URL" in
+            https://*/api/v1) ;;
+            *) echo "::error::VITE_API_URL must be an HTTPS URL ending in /api/v1."; exit 1 ;;
+          esac
+          API_ORIGIN="${VITE_API_URL%/api/v1}"
+          curl --fail --silent --show-error --retry 6 --retry-delay 10 --max-time 60 "$API_ORIGIN/health"
+          curl --fail --silent --show-error --retry 6 --retry-delay 10 --max-time 60 "$API_ORIGIN/ready"
+
+      - name: Install Android API 36 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --licenses <<'ANDROID_SDK_LICENSES'
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          ANDROID_SDK_LICENSES
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Restore Firebase Android configuration (optional)
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GOOGLE_SERVICES_JSON_BASE64:-}" ]]; then
+            echo "::warning::GOOGLE_SERVICES_JSON_BASE64 is not configured; Firebase push notifications will be unavailable in this APK."
+            exit 0
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > apps/mobile/android/app/google-services.json
+          jq -e '[.client[]?.client_info.android_client_info.package_name] | index("com.ephinta.app") != null' apps/mobile/android/app/google-services.json >/dev/null
+
+      - name: Build production web assets
+        run: npm run build:web
+
+      - name: Sync Capacitor Android project
+        run: npm run sync -w apps/mobile
+
+      - name: Package OTA web bundle and version manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ephinta-production"
+          (cd apps/web/dist && zip -qr "$RUNNER_TEMP/ephinta-production/ephinta-web-bundle.zip" .)
+          VERSION="${GITHUB_SHA}"
+          BUNDLE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/ephinta-web-latest/ephinta-web-bundle.zip"
+          PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf '{\n  "version": "%s",\n  "url": "%s",\n  "title": "EPHINTA update available",\n  "message": "A new EPHINTA patch is ready with the latest improvements and fixes.",\n  "publishedAt": "%s",\n  "updateType": "web"\n}\n' "$VERSION" "$BUNDLE_URL" "$PUBLISHED_AT" > "$RUNNER_TEMP/ephinta-production/version.json"
+          test -s "$RUNNER_TEMP/ephinta-production/ephinta-web-bundle.zip"
+          test -s "$RUNNER_TEMP/ephinta-production/version.json"
+
+      - name: Restore and validate production signing keystore
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/ephinta-production.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          keytool -list -keystore "$KEYSTORE_PATH" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          {
+            echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH"
+            echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Confirm fresh-install signing transition
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "This release uses the newly configured permanent EPHINTA signing identity."
+          echo "It is intentionally not expected to match the unsigned/debug Build 869 test APK."
+          echo "The versionCode is kept above Build 869; users must uninstall the old test build before installing this APK."
+
+      - name: Set monotonic Android version code
+        shell: bash
+        run: |
+          set -euo pipefail
+          GRADLE_FILE="apps/mobile/android/app/build.gradle"
+          test -f "$GRADLE_FILE"
+          # Android versionCode is a signed 32-bit integer capped at 2,100,000,000.
+          # GitHub run IDs exceed that limit; the per-workflow run number is monotonic
+          # and safely remains within Android's supported range.
+          RUN_VERSION_CODE="$((GITHUB_RUN_NUMBER + 2))"
+          REQUESTED_MINIMUM="${{ inputs.minimum_version_code || '870' }}"
+          if ! [[ "$REQUESTED_MINIMUM" =~ ^[0-9]+$ ]] || (( REQUESTED_MINIMUM < 1 )); then
+            echo "::error::minimum_version_code must be a positive integer."
+            exit 1
+          fi
+          VERSION_CODE="$RUN_VERSION_CODE"
+          if (( REQUESTED_MINIMUM > VERSION_CODE )); then VERSION_CODE="$REQUESTED_MINIMUM"; fi
+          if (( VERSION_CODE > 2100000000 )); then
+            echo "::error::Calculated Android versionCode exceeds the Play Store limit."
+            exit 1
+          fi
+          sed -i -E "s/versionCode [0-9]+/versionCode $VERSION_CODE/" "$GRADLE_FILE"
+          grep -n 'versionCode' "$GRADLE_FILE"
+
+      - name: Build signed release APK
+        working-directory: eventsss123/eventsss-main/apps/mobile/android
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew --no-daemon clean assembleRelease bundleRelease
+          APK="app/build/outputs/apk/release/app-release.apk"
+          AAB="app/build/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+          mkdir -p "$RUNNER_TEMP/ephinta-production"
+          cp "$APK" "$RUNNER_TEMP/ephinta-production/ephinta-production.apk"
+          cp "$AAB" "$RUNNER_TEMP/ephinta-production/ephinta-production.aab"
+
+      - name: Verify APK signature, certificate and checksum
+        shell: bash
+        env:
+          EXPECTED_CERT: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          APK="$RUNNER_TEMP/ephinta-production/ephinta-production.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          SIGNATURE="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
+          printf '%s\n' "$SIGNATURE"
+          # Use the final colon-delimited field; apksigner's label may contain colons.
+          ACTUAL_CERT="$(printf '%s\n' "$SIGNATURE" | awk '/certificate SHA-256 digest/ {sub(/^.*certificate SHA-256 digest:[[:space:]]*/, ""); print; exit}' | tr -d ':[:space:]' | tr 'A-Z' 'a-z')"
+          EXPECTED_NORMALIZED="$(printf '%s' "$EXPECTED_CERT" | tr -d ':[:space:]' | tr 'A-Z' 'a-z')"
+          if [[ -z "$ACTUAL_CERT" || "$ACTUAL_CERT" != "$EXPECTED_NORMALIZED" ]]; then
+            echo "::error::APK signing certificate does not match ANDROID_CERT_SHA256. Refusing to publish."
+            exit 1
+          fi
+          "$APKSIGNER" verify --verbose "$APK" >/dev/null
+          AAB="$RUNNER_TEMP/ephinta-production/ephinta-production.aab"
+          test -s "$AAB"
+          AAB_CERT="$(keytool -printcert -jarfile "$AAB" | awk '/SHA256:/ {sub(/^.*SHA256:[[:space:]]*/, ""); print; exit}' | tr -d ':[:space:]' | tr 'A-Z' 'a-z')"
+          if [[ -z "$AAB_CERT" || "$AAB_CERT" != "$EXPECTED_NORMALIZED" ]]; then
+            echo "::error::AAB signing certificate does not match ANDROID_CERT_SHA256. Refusing to publish."
+            exit 1
+          fi
+          jarsigner -verify -verbose -certs "$AAB" >/dev/null
+          (cd "$RUNNER_TEMP/ephinta-production" && sha256sum ephinta-production.apk ephinta-production.aab > SHA256SUMS.txt)
+          unzip -t "$APK" >/dev/null
+
+      - name: Upload signed production APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ephinta-production-signed-apk
+          path: ${{ runner.temp }}/ephinta-production/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish stable web OTA release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ephinta-web-latest
+          target_commitish: ${{ github.sha }}
+          name: EPHINTA Web OTA
+          body: |
+            Stable EPHINTA web bundle for installed Android applications.
+            This release is consumed by the production app-updates API.
+          files: |
+            ${{ runner.temp }}/ephinta-production/ephinta-web-bundle.zip
+            ${{ runner.temp }}/ephinta-production/version.json
+          overwrite_files: true
+          make_latest: false
+          prerelease: true
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+
+      - name: Publish production GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: EPHINTA ${{ github.ref_name }}
+          body: |
+            Production-signed EPHINTA Android APK.
+
+            Signature verified against the configured ANDROID_CERT_SHA256 fingerprint.
+            SHA-256 checksum is included. The production API health and readiness checks passed.
+          files: |
+            ${{ runner.temp }}/ephinta-production/ephinta-production.apk
+            ${{ runner.temp }}/ephinta-production/ephinta-production.aab
+            ${{ runner.temp }}/ephinta-production/SHA256SUMS.txt
+            ${{ runner.temp }}/ephinta-production/ephinta-web-bundle.zip
+            ${{ runner.temp }}/ephinta-production/version.json
+          make_latest: true
+          prerelease: false
+          fail_on_unmatched_files: true
+
+      - name: Verify published OTA update through production API
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST_URL="${VITE_UPDATE_URL}/version.json"
+          BUNDLE_URL="${VITE_UPDATE_URL}/ephinta-web-bundle.zip"
+          MANIFEST="$RUNNER_TEMP/ephinta-ota-version.json"
+          BUNDLE="$RUNNER_TEMP/ephinta-ota-bundle.zip"
+
+          # Allow the release asset and Render API cache/deploy path to settle.
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 --max-time 60 "$MANIFEST_URL" -o "$MANIFEST"
+          jq -e '.version | type == "string" and length > 0' "$MANIFEST" >/dev/null
+          jq -e '.url | type == "string" and startswith("ephinta-web-bundle.zip?")' "$MANIFEST" >/dev/null
+
+          BUNDLE_PATH="$(jq -r '.url' "$MANIFEST")"
+          BUNDLE_URL="$(node -e 'const [base, path] = process.argv.slice(1); const root = new URL(base.endsWith("/") ? base : base + "/"); const target = new URL(path, root); if (target.origin !== root.origin || !target.pathname.startsWith(root.pathname)) process.exit(2); process.stdout.write(target.toString())' "$VITE_UPDATE_URL" "$BUNDLE_PATH")"
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 --max-time 120 "$BUNDLE_URL" -o "$BUNDLE"
+          test -s "$BUNDLE"
+          unzip -t "$BUNDLE" >/dev/null
+          echo "Production OTA manifest and web bundle are reachable through the live API."
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${RUNNER_TEMP:-}" ]]; then
+            rm -f "$RUNNER_TEMP/ephinta-production.keystore"
+          fi

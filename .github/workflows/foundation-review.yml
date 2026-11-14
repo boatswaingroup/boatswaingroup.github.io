@@ -1,0 +1,60 @@
+name: Winning-game foundation compatibility review
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'foundation/**'
+      - 'scripts/import-winning-game-foundation.sh'
+      - 'docs/ARCHITECTURE.md'
+      - '.github/workflows/foundation-review.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: foundation-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
+      JWT_SECRET: test-secret-test-secret-test-secret-1234
+      NODE_ENV: test
+    steps:
+      - name: Check out the Boatswain branch and copied foundation
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+      - name: Verify imported source files exist
+        run: |
+          test -f foundation/Winning-game/eventsss123/eventsss-main/package.json
+          test -f foundation/Winning-game/eventsss123/eventsss-main/package-lock.json
+          test -f foundation/Winning-game/eventsss123/eventsss-main/apps/web/package.json
+          test -f foundation/Winning-game/eventsss123/eventsss-main/apps/api/package.json
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: foundation/Winning-game/eventsss123/eventsss-main/package-lock.json
+      - name: Install locked dependencies
+        working-directory: foundation/Winning-game/eventsss123/eventsss-main
+        run: npm ci
+      - name: Run API checks, web tests and KYC self-test
+        working-directory: foundation/Winning-game/eventsss123/eventsss-main
+        env:
+          DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
+          JWT_SECRET: test-secret-test-secret-test-secret-1234
+          NODE_ENV: test
+        run: npm run check
+      - name: Build web application
+        working-directory: foundation/Winning-game/eventsss123/eventsss-main
+        env:
+          DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
+        run: npm run build:web
+      - name: Build API
+        working-directory: foundation/Winning-game/eventsss123/eventsss-main
+        env:
+          DATABASE_URL: postgresql://ess:ess@127.0.0.1:5432/ess?schema=public
+        run: npm run build

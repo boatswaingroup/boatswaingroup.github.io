@@ -1,0 +1,106 @@
+name: Boatswain Group Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'android/**'
+      - '.github/workflows/boatswain-android-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: boatswain-android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build and verify installable Android APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --licenses <<'ANDROID_SDK_LICENSES'
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          y
+          ANDROID_SDK_LICENSES
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Install Capacitor dependencies
+        working-directory: android
+        run: npm install --no-audit --no-fund
+
+      - name: Build web bundle and create Android project
+        working-directory: android
+        run: |
+          npm run build:web
+          npx cap add android
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Verify APK and calculate checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -E '^(package:|sdkVersion:|targetSdkVersion:)'
+          mkdir -p dist-apk
+          cp "$APK" dist-apk/boatswain-group-debug.apk
+          sha256sum dist-apk/boatswain-group-debug.apk > dist-apk/SHA256SUMS.txt
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boatswain-group-android-apk
+          path: dist-apk/*
+          if-no-files-found: error
+          retention-days: 30
