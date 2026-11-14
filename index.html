@@ -23,6 +23,22 @@
 .customer-financials{margin-top:22px}.financial-plan{border:1px solid var(--line);border-radius:14px;padding:16px;background:#fff}.financial-plan h4{margin:0 0 8px}.financial-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}.financial-metric{padding:12px;border-radius:10px;background:var(--cream)}.financial-metric strong{display:block;font-size:16px}.financial-metric span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.financial-installments{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.financial-installments .step{padding:7px 0}.financial-ledger-entry{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}.financial-ledger-entry:last-child{border-bottom:0}.financial-ledger-entry strong{display:block}@media(max-width:540px){.financial-summary{grid-template-columns:1fr}.financial-ledger-entry{display:block}}
 
 .text-link{border:0;background:transparent;color:var(--green);font:inherit;font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:3px;padding:8px 0;cursor:pointer}.text-link:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+
+/* Boatswain Guide: contextual self-service help adapted from the upstream guide pattern. */
+.boatswain-guide{position:fixed;right:22px;bottom:22px;z-index:60;font-family:inherit}
+.boatswain-guide-launch{border:0;border-radius:999px;background:var(--green);color:#fff;padding:14px 19px;font-weight:800;box-shadow:0 12px 32px #102a2440;cursor:pointer}
+.boatswain-guide-panel{display:none;position:absolute;right:0;bottom:66px;width:min(370px,calc(100vw - 32px));max-height:min(560px,calc(100vh - 120px));overflow:auto;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 22px 70px #102a2440;padding:18px}
+.boatswain-guide-panel.open{display:block}
+.boatswain-guide-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}
+.boatswain-guide-head h3{margin:0;font-size:18px}.boatswain-guide-head p{margin:3px 0 0;color:var(--muted);font-size:12px}
+.boatswain-guide-close{border:0;border-radius:50%;width:34px;height:34px;background:var(--cream);cursor:pointer}
+.boatswain-guide-topics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.boatswain-guide-topic{border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);padding:11px;text-align:left;font-weight:700;font-size:13px;cursor:pointer}
+.boatswain-guide-topic:hover{border-color:var(--green);background:#f6f8f5}
+.boatswain-guide-answer{margin-top:12px;padding:13px;border-radius:12px;background:var(--cream);font-size:13px;color:var(--ink);min-height:72px}
+.boatswain-guide-answer a{color:var(--green);font-weight:800;text-decoration:underline}
+@media(max-width:540px){.boatswain-guide{right:14px;bottom:14px}.boatswain-guide-launch{padding:13px 16px}}
+
 </style>
 </head>
 <body>
@@ -334,4 +350,46 @@ const resetTokenFromUrl=new URLSearchParams(window.location.hash.slice(1)).get('
 if(resetTokenFromUrl){document.getElementById('passwordResetToken').value=resetTokenFromUrl;openModal();if(apiBase){showAuth('reset-confirm');authMessage('Your reset link is ready. Choose a new password below.')}else{notify('Password recovery is not connected on this preview yet.')}}
 document.getElementById('year').textContent=new Date().getFullYear();
 </script>
+
+<div class="boatswain-guide" id="boatswainGuide">
+  <section class="boatswain-guide-panel" id="boatswainGuidePanel" aria-label="Boatswain customer help" aria-hidden="true">
+    <div class="boatswain-guide-head"><div><h3>Boatswain Guide</h3><p>Help with properties, reservations and your account</p></div><button class="boatswain-guide-close" id="boatswainGuideClose" type="button" aria-label="Close help">×</button></div>
+    <p class="muted" style="font-size:13px;margin:0 0 10px">Choose a topic to see the next step.</p>
+    <div class="boatswain-guide-topics">
+      <button class="boatswain-guide-topic" type="button" data-guide-topic="property">Find a property</button>
+      <button class="boatswain-guide-topic" type="button" data-guide-topic="reserve">Reserve a plot</button>
+      <button class="boatswain-guide-topic" type="button" data-guide-topic="payments">Payment plans</button>
+      <button class="boatswain-guide-topic" type="button" data-guide-topic="documents">Due diligence</button>
+      <button class="boatswain-guide-topic" type="button" data-guide-topic="account">Account access</button>
+      <button class="boatswain-guide-topic" type="button" data-guide-topic="contact">Speak to Boatswain</button>
+    </div>
+    <div class="boatswain-guide-answer" id="boatswainGuideAnswer" role="status" aria-live="polite">Select a topic above. This guide provides general information; confirm plot availability and all payment terms with Boatswain staff.</div>
+  </section>
+  <button class="boatswain-guide-launch" id="boatswainGuideLaunch" type="button" aria-expanded="false" aria-controls="boatswainGuidePanel">Need help? <span aria-hidden="true">✦</span></button>
+</div>
+<script>
+(()=>{
+ const panel=document.getElementById('boatswainGuidePanel');
+ const launch=document.getElementById('boatswainGuideLaunch');
+ const answer=document.getElementById('boatswainGuideAnswer');
+ const close=document.getElementById('boatswainGuideClose');
+ if(!panel||!launch||!answer||!close)return;
+ const topics={
+  property:'Browse the property catalogue and use the location, type, price and availability filters. Open a listing to review its displayed details. Catalogue information is indicative until our team confirms the live inventory and written offer.',
+  reserve:'Open the property details and submit an enquiry to request the latest plot inventory. A reservation is only confirmed when Boatswain staff issue a reservation reference and the customer dashboard records the active hold. Do not transfer money to an unofficial account.',
+  payments:'Payment-plan figures on the site are illustrative. Ask for a written offer showing the approved total price, deposit, instalment amounts, due dates, fees and refund conditions before paying. Use only payment instructions issued through verified Boatswain channels.',
+  documents:'Before purchase, request and independently review the title documents, survey plan, allocation terms, development status, access-road details, encumbrance checks and the seller’s authority to sell. Consider using an independent property lawyer or surveyor.',
+  account:'Use Sign in / Register to access your customer account. If you cannot sign in, use Forgot password to request a reset link. Never share your password, reset link or one-time code with anyone.',
+  contact:'Send an enquiry through the contact form or contact Boatswain via the verified WhatsApp link on this website. Include the estate name, plot size and your preferred contact details. Ask for a written response and payment instructions.'
+ };
+ document.querySelectorAll('[data-guide-topic]').forEach(button=>button.addEventListener('click',()=>{
+   answer.textContent=topics[button.dataset.guideTopic]||'Please contact Boatswain for assistance.';
+ }));
+ function setOpen(open){panel.classList.toggle('open',open);panel.setAttribute('aria-hidden',String(!open));launch.setAttribute('aria-expanded',String(open));if(open)close.focus();else launch.focus()}
+ launch.addEventListener('click',()=>setOpen(!panel.classList.contains('open')));
+ close.addEventListener('click',()=>setOpen(false));
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&panel.classList.contains('open'))setOpen(false)});
+})();
+</script>
+
 </body></html>
