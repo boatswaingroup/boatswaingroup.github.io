@@ -1,0 +1,8 @@
+{
+  "appId": "com.boatswaingroup.group",
+  "appName": "Boatswain Group",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}
