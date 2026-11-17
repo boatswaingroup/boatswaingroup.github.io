@@ -1,0 +1,10 @@
+# Local environment and generated files
+.env
+.env.*
+!.env.example
+node_modules/
+backend/node_modules/
+backend/dist/
+coverage/
+*.log
+.DS_Store

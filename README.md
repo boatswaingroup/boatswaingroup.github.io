@@ -25,9 +25,38 @@ Production activation requires:
 5. Transactional email/SMS, secure document storage, backups, monitoring and incident response.
 6. Automated tests, security review and end-to-end verification.
 
-## Local preview
+## Local full-stack development
 
-Open index.html in a browser. This is a static site and has no npm build step.
+From the repository root, use one terminal:
+
+```bash
+npm install --prefix backend
+```
+
+Create the backend environment file (never commit it):
+
+- macOS/Linux: `cp backend/.env.example backend/.env`
+- Windows PowerShell: `Copy-Item backend/.env.example backend/.env`
+
+Edit `backend/.env` and set a working local PostgreSQL `DATABASE_URL` and a private `JWT_SECRET` of at least 32 characters. Then prepare the database:
+
+```bash
+npm run db:generate --prefix backend
+npm run db:deploy --prefix backend
+```
+
+Now start both applications together from the repository root:
+
+```bash
+npm run dev
+```
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:4000
+- API health: http://localhost:4000/health
+- Database readiness: http://localhost:4000/ready
+
+The development launcher serves the existing static frontend, starts the API in watch mode, points the local frontend at the local API, and stops both processes when either one exits or you press Ctrl+C. Set `WEB_PORT` or `PORT` before running the command to override the default ports. No production API URL or committed secret is required for local development.
 
 ## Deployment
 
