@@ -1,0 +1,16 @@
+{
+  "name": "boatswain-group",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Boatswain Group web application and property API",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "node scripts/web-dev.mjs",
+    "dev:api": "npm --prefix backend run dev",
+    "build:api": "npm --prefix backend run build",
+    "test:api": "npm --prefix backend test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
