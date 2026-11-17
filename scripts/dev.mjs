@@ -12,6 +12,11 @@ const webPort = Number(process.env.WEB_PORT || 5173);
 const apiPort = Number(process.env.PORT || 4000);
 const apiOrigin = `http://localhost:${apiPort}`;
 
+if (!existsSync(path.join(backendDir, 'node_modules'))) {
+  console.error('Backend dependencies are not installed. Run: npm install --prefix backend');
+  process.exit(1);
+}
+
 if (!existsSync(envFile)) {
   console.error('\n[Boatswain] Missing backend/.env');
   console.error('Create it from the example, then add your local PostgreSQL DATABASE_URL and a private JWT_SECRET:');
@@ -39,7 +44,17 @@ const mimeTypes = {
 
 const webServer = createServer(async (req, res) => {
   try {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD' }).end('Method not allowed');
+      return;
+    }
     const pathname = decodeURIComponent(new URL(req.url || '/', 'http://localhost').pathname);
+    const segments = pathname.split('/').filter(Boolean);
+    const blocked = new Set(['backend', 'foundation', 'scripts', 'docs', 'android', 'node_modules', '.git', '.github']);
+    if (segments.some(segment => segment.startsWith('.') || blocked.has(segment.toLowerCase()))) {
+      res.writeHead(404).end('Not found');
+      return;
+    }
     let requested = path.resolve(root, `.${pathname}`);
     if (requested !== root && !requested.startsWith(root + path.sep)) {
       res.writeHead(403).end('Forbidden');
@@ -93,10 +108,9 @@ function shutdown(code = 0) {
   shuttingDown = true;
   webServer.close();
   if (!api.killed) api.kill('SIGTERM');
-  setTimeout(() => {
-    if (!api.killed) api.kill('SIGKILL');
-    process.exit(code);
-  }, 1500).unref();
+  const forceExit = setTimeout(() => process.exit(code), 3000);
+  forceExit.unref();
+  api.once('exit', () => process.exit(code));
 }
 
 api.on('error', error => {
