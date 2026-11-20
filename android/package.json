@@ -4,7 +4,7 @@
   "private": true,
   "description": "Boatswain Group Android wrapper built with Capacitor",
   "scripts": {
-    "build:web": "node -e \"require('fs').mkdirSync('www',{recursive:true});require('fs').copyFileSync('../index.html','www/index.html')\"",
+    "build:web": "node -e \"const fs=require('fs');fs.mkdirSync('www',{recursive:true});fs.copyFileSync('../index.html','www/index.html');if(fs.existsSync('../assets'))fs.cpSync('../assets','www/assets',{recursive:true})\"",
     "android:add": "cap add android",
     "android:sync": "npm run build:web && cap sync android",
     "android:debug": "cd android && gradlew assembleDebug"
