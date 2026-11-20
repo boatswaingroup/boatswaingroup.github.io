@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - 'assets/**'
       - 'android/**'
       - '.github/workflows/boatswain-android-apk.yml'
 
@@ -75,6 +76,7 @@ jobs:
         working-directory: android
         run: |
           npm run build:web
+          test -s www/assets/estate-experience.js
           npx cap add android
           npx cap sync android
 
