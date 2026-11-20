@@ -74,6 +74,7 @@ if (mount) {
   }
   renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
   window.addEventListener('pointerup',()=>dragging=false);
+  renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();distance=Math.max(18,Math.min(62,distance+e.deltaY*.025));},{passive:false});
   window.addEventListener('pointermove',e=>{
     if(!dragging||renderer.xr.isPresenting)return;
     const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;
