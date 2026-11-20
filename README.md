@@ -27,36 +27,36 @@ Production activation requires:
 
 ## Local full-stack development
 
-From the repository root, use one terminal:
+Requirements: Node.js 22+ and Docker Desktop (or Docker Engine with Docker Compose v2).
+
+From the repository root:
 
 ```bash
 npm install --prefix backend
-```
-
-Create the backend environment file (never commit it):
-
-- macOS/Linux: `cp backend/.env.example backend/.env`
-- Windows PowerShell: `Copy-Item backend/.env.example backend/.env`
-
-Edit `backend/.env` and set a working local PostgreSQL `DATABASE_URL` and a private `JWT_SECRET` of at least 32 characters. Then prepare the database:
-
-```bash
-npm run db:generate --prefix backend
-npm run db:deploy --prefix backend
-```
-
-Now start both applications together from the repository root:
-
-```bash
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:4000
-- API health: http://localhost:4000/health
-- Database readiness: http://localhost:4000/ready
+One command now:
+1. Creates a private local `backend/.env` with a generated JWT secret if it does not exist.
+2. Starts PostgreSQL 16 using Docker Compose on `localhost:5432`.
+3. Waits for PostgreSQL readiness.
+4. Generates Prisma Client and applies database migrations.
+5. Starts the website and API together.
 
-The development launcher serves the existing static frontend, starts the API in watch mode, points the local frontend at the local API, and stops both processes when either one exits or you press Ctrl+C. Set `WEB_PORT` or `PORT` before running the command to override the default ports. No production API URL or committed secret is required for local development.
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5000
+- API health: http://localhost:5000/health
+- Database readiness: http://localhost:5000/ready
+- PostgreSQL: localhost:5432 (database `boatswain`)
+
+Press Ctrl+C to stop the frontend and API. PostgreSQL stays running with its persistent Docker volume. Stop it using `docker compose down`; remove local database data only with `docker compose down -v`. Local Docker credentials are development-only and must never be reused in staging or production.
+
+Override ports with `WEB_PORT` and `API_PORT`, or supply a custom `DATABASE_URL`, before starting.
+
+## Interactive estate and farm experience
+
+The landing page includes an illustrative Three.js estate/farm scene with orbit controls, selectable demonstration plots, a four-stage development timeline and a WebXR VR entry point where the browser and headset support immersive VR. The scene is a product prototype, not a cadastral survey or live inventory. Exact plot geometry, availability, pricing and reservations must come from approved Boatswain inventory before sales use.
+
 
 ## Deployment
 
