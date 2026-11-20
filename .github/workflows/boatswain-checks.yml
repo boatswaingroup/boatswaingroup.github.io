@@ -20,7 +20,7 @@ jobs:
           POSTGRES_PASSWORD: boatswain-test
           POSTGRES_DB: boatswain_test
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd "pg_isready -U boatswain -d boatswain_test"
           --health-interval 10s
@@ -44,7 +44,7 @@ jobs:
       - name: Validate and build property API
         working-directory: backend
         env:
-          DATABASE_URL: postgresql://boatswain:boatswain-test@127.0.0.1:5432/boatswain_test?schema=public
+          DATABASE_URL: postgresql://boatswain:boatswain-test@127.0.0.1:5433/boatswain_test?schema=public
           JWT_SECRET: test-only-secret-with-more-than-32-characters
           NODE_ENV: test
         run: |
@@ -54,6 +54,41 @@ jobs:
           npx prisma migrate deploy
           npm run build
           npm test
+      - name: Verify npm run dev starts frontend, API and PostgreSQL
+        env:
+          JWT_SECRET: test-only-secret-with-more-than-32-characters
+        run: |
+          set -euo pipefail
+          setsid npm run dev > /tmp/boatswain-dev.log 2>&1 &
+          DEV_PID=$!
+          cleanup() {
+            kill -- -"$DEV_PID" 2>/dev/null || true
+            wait "$DEV_PID" 2>/dev/null || true
+            docker compose down -v
+          }
+          trap cleanup EXIT
+          READY=0
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null \
+              && curl -fsS http://127.0.0.1:5000/health >/dev/null \
+              && curl -fsS http://127.0.0.1:5000/ready >/dev/null; then
+              READY=1
+              break
+            fi
+            if ! kill -0 "$DEV_PID" 2>/dev/null; then
+              cat /tmp/boatswain-dev.log
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$READY" -ne 1 ]; then
+            cat /tmp/boatswain-dev.log
+            echo "Frontend, API and PostgreSQL did not all become ready."
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:5000/api/estates | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const v=JSON.parse(s);if(!Array.isArray(v.estates))process.exit(1)})"
+          curl -fsS http://127.0.0.1:5173/ | grep -q 'content="http://localhost:5000"'
+          echo "npm run dev passed: frontend :5173, API :5000 and PostgreSQL :5432 are ready."
       - name: Install browser audit dependency
         run: |
           npm init -y

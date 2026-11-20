@@ -15,15 +15,9 @@ A mobile-first public website foundation for Boatswain Group, with Boatswain Pro
 
 ## Important status
 
-This is an actively developed application foundation, **not yet a production-ready or live transaction system**. The API and database code are implemented on the development branch, but the public GitHub Pages frontend has no configured API URL and therefore does not expose live accounts or reservations. Payment tables are accounting infrastructure only: there is no payment initialization, gateway SDK, webhook, customer charge, or receipt generation. No live payment is enabled. The public Boatswain website audit did not find verified deposit amounts or exact monthly instalment amounts. Any amount mentioned in earlier project notes is unconfirmed and must not be displayed as an approved price or payment request.
+The current application code is merged to `main` and the public website is deployed. It is still a staging/prototype, **not yet a production transaction system**. The local development stack includes PostgreSQL, the API, customer account foundations, estate/plot inventory endpoints, reservations and payment-plan ledger structures. The Render staging API still needs its database connection and production-safe configuration before public customer accounts and reservations can be activated.
 
-Production activation requires:
-1. Confirmed estate catalogue, plot dimensions, pricing, site plans, availability and allocation rules.
-2. Production API/database hosting, secure administrator provisioning, account verification and recovery, session revocation, backups and monitoring.
-3. Confirmed deposit and instalment policies, merchant payment provider, sandbox integration, signed webhook verification, reconciliation, receipts and refunds policy. Never put secret keys in browser code.
-4. Approved legal Terms & Conditions, sale/allocation documents, privacy notice and data-retention policy.
-5. Transactional email/SMS, secure document storage, backups, monitoring and incident response.
-6. Automated tests, security review and end-to-end verification.
+The landing page's 3D estate/farm model is illustrative, not a survey-accurate cadastral plan or live plot inventory. The farm market is a paper-trading simulation using arbitrary index points; it does not execute real trades or represent verified livestock stock or naira prices. No live payment gateway, customer charge, receipt or settlement is enabled. Before launch, confirm estate maps, plot inventory, prices, deposits, allocation rules, legal documents, payment provider credentials, reconciliation and operational controls with Boatswain.
 
 ## Local full-stack development
 
@@ -86,7 +80,7 @@ The design and code in this repository are independently implemented for Boatswa
 
 ## Development branch and review
 
-The active implementation is maintained on `project/boatswain-platform-foundation` in draft [PR #1](https://github.com/boatswaingroup/boatswain.github.io/pull/1). It is intentionally not merged to `main` or deployed as the live customer system. See `docs/ARCHITECTURE.md` for payment safeguards and remaining launch gates.
+The current implementation is maintained on `main`. The full-stack local launcher and 3D estate/farm experience were merged in [PR #18](https://github.com/boatswaingroup/boatswain.github.io/pull/18); Android asset packaging was fixed in [PR #19](https://github.com/boatswaingroup/boatswain.github.io/pull/19); the farm market paper-trading preview was merged in [PR #20](https://github.com/boatswaingroup/boatswain.github.io/pull/20). The public site is a preview and still requires Render staging configuration before live customer transactions. See `docs/ARCHITECTURE.md` for payment safeguards and launch gates.
 
 
 ## Product-design improvements (13 November 2026)
@@ -98,7 +92,7 @@ The active implementation is maintained on `project/boatswain-platform-foundatio
 - Sign-out now revokes the current server session when the API is configured.
 - Expanded Chromium smoke coverage for the filters, empty state and mobile navigation.
 
-The public GitHub Pages URL still serves the older preview. These changes are on the development branch only and are not live.
+These design improvements are merged into `main` and deployed on the public preview.
 
 
 ## Property-detail and purchase-planning journey
@@ -136,6 +130,6 @@ The account modal now includes forgot-password and reset-link journeys. The back
 
 ## Imported Winning-game source foundation
 
-A complete snapshot of `demtaiwo1-eng/Winning-game-` has been copied into `foundation/Winning-game/` on this development branch. The snapshot includes the upstream repository files and assets (3,864 upstream tree entries), plus a Boatswain import note. The upstream repository itself has not been modified. The copy is retained as a reference foundation; its EPHINTA/event-commerce screens and workflows are not the Boatswain product.
+A complete snapshot of `demtaiwo1-eng/Winning-game-` has been copied into `foundation/Winning-game/` on `main`. The snapshot includes the upstream repository files and assets (3,864 upstream tree entries), plus a Boatswain import note. The upstream repository itself has not been modified. The copy is retained as a reference foundation; its EPHINTA/event-commerce screens and workflows are not the Boatswain product.
 
 Useful candidate patterns include React/TypeScript, Express, PostgreSQL/Prisma, authentication, listings/enquiries, payment-ledger patterns, notifications and audit logs. Review the nested source workflows, dependency advisories, licences/notices, and remove generated or unnecessary dependencies from any production build. Never run imported payment, signing, mobile release or backup workflows against production without a separate review.
