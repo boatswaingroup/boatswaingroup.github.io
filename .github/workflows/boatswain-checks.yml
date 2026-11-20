@@ -39,6 +39,7 @@ jobs:
           node --check scripts/audit-reference-site.mjs
           node --check scripts/dev.mjs
           node --check assets/estate-experience.js
+          node --check assets/farm-market.js
           node scripts/test-site.mjs
       - name: Validate and build property API
         working-directory: backend
