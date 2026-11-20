@@ -37,6 +37,8 @@ jobs:
         run: |
           bash -n scripts/import-winning-game-foundation.sh
           node --check scripts/audit-reference-site.mjs
+          node --check scripts/dev.mjs
+          node --check assets/estate-experience.js
           node scripts/test-site.mjs
       - name: Validate and build property API
         working-directory: backend
