@@ -12,6 +12,14 @@ try {
   if (!(await page.locator('#estate3dCanvas').count())) throw new Error('3D estate scene mount is missing');
   if (!(await page.locator('#estateStage').count())) throw new Error('Estate development timeline control is missing');
   if (!(await page.locator('#estateVrButton').count())) throw new Error('VR entry point is missing');
+  if (await page.locator('#farmMarketAssets .market-asset').count() !== 4) throw new Error('Expected four farm market demo assets');
+  if (!(await page.locator('#marketMessage').count())) throw new Error('Paper market order status is missing');
+  if (!(await page.locator('#marketCash').innerText()).includes('10,000.00')) throw new Error('Paper market wallet did not initialize');
+  const cattleCard = page.locator('#farmMarketAssets .market-asset').first();
+  await cattleCard.locator('.market-buy').click();
+  if (!(await page.locator('#marketHoldings').innerText()).includes('Cattle: 1')) throw new Error('Paper market buy did not update the demo portfolio');
+  await cattleCard.locator('.market-sell').click();
+  if (!(await page.locator('#marketHoldings').innerText()).includes('No holdings')) throw new Error('Paper market sell did not close the demo position');
   if (await page.locator('.property').count() !== 6) throw new Error('Expected six property cards');
   await page.locator('#search').fill('Moniya');
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Property search did not filter to Moniya');
