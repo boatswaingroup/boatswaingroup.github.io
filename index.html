@@ -141,8 +141,9 @@
  <div class="wrap">
   <div class="sectionhead"><div><div class="eyebrow">Boatswain Agribusiness</div><h2>Farm market exchange</h2><p class="muted">Preview a buy-and-sell experience for livestock and farm products, with moving demonstration quotes and a paper portfolio.</p></div><div class="market-wallet"><small>Demo wallet · market points</small><strong id="marketCash">10,000.00 pts</strong></div></div>
   <div class="market-shell">
-   <div class="market-top"><div><strong>Live simulation board</strong><p class="muted" style="margin:3px 0 0;font-size:13px">Quotes refresh automatically. Select quantity, then buy or sell in this paper-trading sandbox.</p></div><span class="tag">SIMULATION ONLY</span></div>
+   <div class="market-top"><div><strong>Moving simulation board</strong><p class="muted" style="margin:3px 0 0;font-size:13px">Quotes refresh automatically. Select quantity, then buy or sell in this paper-trading sandbox.</p></div><span class="tag">SIMULATION ONLY</span></div>
    <div class="market-grid" id="farmMarketAssets" aria-live="polite"></div>
+   <p id="marketMessage" role="status" aria-live="polite" class="muted" style="font-size:13px;margin:12px 0 0">Loading paper market…</p>
    <p class="market-foot">Initial demonstration stock: 4 cows, 20 chickens, 3 horses and 100 fish. Quantities are placeholders from the project brief, not confirmed available stock. Prices are arbitrary index points, not naira prices or live market quotes. Trades are held only in this browser session; no money, ownership, payment or real order is created.</p>
    <div style="margin-top:22px"><div class="market-top"><h3 style="margin:0">Paper portfolio</h3><strong id="marketHoldings">No holdings yet</strong></div><table class="market-ledger"><thead><tr><th>Time</th><th>Asset</th><th>Side</th><th>Qty</th><th>Quote</th><th>Total</th></tr></thead><tbody id="marketTradeHistory"><tr><td class="market-empty" colspan="6">Your demo trades will appear here.</td></tr></tbody></table></div>
   </div>
