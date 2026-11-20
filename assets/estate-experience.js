@@ -63,6 +63,30 @@ if (mount) {
     const body=new THREE.Mesh(new THREE.BoxGeometry(.9,.55,.48),animalMat);body.position.set(7+i*1.25,.5,-5);farm.add(body);
     const head=new THREE.Mesh(new THREE.SphereGeometry(.24,8,6),animalMat);head.position.set(7.48+i*1.25,.72,-5);farm.add(head);
   }
+  // Proposed starting farm stock from the project brief: 20 chickens and 3 horses.
+  const chickenMat=new THREE.MeshStandardMaterial({color:'#fff7df'});
+  for(let i=0;i<20;i++){
+    const x=(i%5)*.58+0.2,z=Math.floor(i/5)*.62+1.0;
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.19,7,6),chickenMat);body.scale.set(1.15,.8,1);body.position.set(x,.24,z);farm.add(body);
+    const beak=new THREE.Mesh(new THREE.ConeGeometry(.055,.16,5),new THREE.MeshStandardMaterial({color:'#d88a37'}));beak.rotation.z=-Math.PI/2;beak.position.set(x+.19,.28,z);farm.add(beak);
+  }
+  const horseMat=new THREE.MeshStandardMaterial({color:'#8b5b3c'});
+  for(let i=0;i<3;i++){
+    const x=10.2+(i%2)*1.3,z=1.3+Math.floor(i/2)*1.25;
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.05,.78,.48),horseMat);body.position.set(x,.65,z);farm.add(body);
+    const head=new THREE.Mesh(new THREE.BoxGeometry(.3,.62,.32),horseMat);head.position.set(x+.48,.92,z-.04);farm.add(head);
+    for(const legX of [-.32,.32])for(const legZ of [-.14,.14]){
+      const leg=new THREE.Mesh(new THREE.CylinderGeometry(.055,.07,.62,6),horseMat);leg.position.set(x+legX,.31,z+legZ);farm.add(leg);
+    }
+  }
+  // 100 fish markers in the pond are illustrative stock markers, not a live count.
+  const fishMat=new THREE.MeshStandardMaterial({color:'#e7a45b',roughness:.45});
+  for(let i=0;i<100;i++){
+    const angle=(i%10)/10*Math.PI*2 + Math.floor(i/10)*.11;
+    const radius=.35+(Math.floor(i/10)%5)*.31;
+    const fish=new THREE.Mesh(new THREE.SphereGeometry(.12,6,5),fishMat);
+    fish.scale.set(1.7,.55,.8);fish.position.set(6+Math.cos(angle)*radius,.12,6+Math.sin(angle)*radius);farm.add(fish);
+  }
 
   const raycaster=new THREE.Raycaster(), pointer=new THREE.Vector2();
   let selected=null, stage=0, dragging=false, lastX=0, lastY=0, orbit=0, tilt=.62, distance=34;
