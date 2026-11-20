@@ -29,6 +29,17 @@ if (!existsSync(envFile)) {
   ].join('\n'), { flag: 'wx', mode: 0o600 });
   console.log('[Boatswain] Created backend/.env with a fresh local-only JWT secret.');
 }
+const existingEnv = await readFile(envFile, 'utf8');
+const secretMatch = existingEnv.match(/^JWT_SECRET=(.*)$/m);
+const existingSecret = secretMatch?.[1]?.replace(/^["']|["']$/g, '') || '';
+if (!existingSecret || existingSecret.includes('replace-with') || existingSecret.length < 32) {
+  const freshSecret = randomBytes(48).toString('hex');
+  const repairedEnv = secretMatch
+    ? existingEnv.replace(/^JWT_SECRET=.*$/m, `JWT_SECRET="${freshSecret}"`)
+    : existingEnv + `\nJWT_SECRET="${freshSecret}"\n`;
+  await writeFile(envFile, repairedEnv, { mode: 0o600 });
+  console.log('[Boatswain] Replaced the example JWT secret with a private local secret.');
+}
 
 const localEnv = {
   ...process.env,
@@ -38,7 +49,7 @@ const localEnv = {
 };
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: root, stdio: 'inherit', env: localEnv, ...options });
+    const child = spawn(command, args, { cwd: root, stdio: 'inherit', env: localEnv, shell: process.platform === 'win32', ...options });
     child.once('error', reject);
     child.once('exit', code => code === 0 ? resolve() : reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`)));
   });
@@ -53,7 +64,7 @@ catch (error) {
 let databaseReady = false;
 for (let attempt = 0; attempt < 40; attempt += 1) {
   try {
-    await run(docker, ['compose', 'exec', '-T', 'db', 'pg_isready', '-U', 'boatswain', '-d', 'boatswain']);
+    await run(docker, ['compose', 'exec', '-T', 'db', 'pg_isready', '-U', 'boatswain', '-d', 'boatswain'], { stdio: 'ignore' });
     databaseReady = true; break;
   } catch { await new Promise(resolve => setTimeout(resolve, 1500)); }
 }
@@ -96,7 +107,7 @@ const webServer = createServer(async (req,res) => {
     if(req.method==='HEAD')res.end();else res.end(body);
   }catch(error){console.error('[web] Request failed:',error);res.writeHead(500).end('Internal server error');}
 });
-const api=spawn(npm,['run','dev'],{cwd:backendDir,stdio:'inherit',env:localEnv});
+const api=spawn(npm,['run','dev'],{cwd:backendDir,stdio:'inherit',env:localEnv,shell:process.platform==='win32'});
 let shuttingDown=false;
 function shutdown(code=0){
   if(shuttingDown)return;shuttingDown=true;webServer.close();if(!api.killed)api.kill('SIGTERM');
