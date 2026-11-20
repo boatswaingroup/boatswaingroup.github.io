@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: boatswain-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: boatswain
+      POSTGRES_PASSWORD: boatswain_dev_only
+      POSTGRES_DB: boatswain
+    ports:
+      - "5432:5432"
+    volumes:
+      - boatswain-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U boatswain -d boatswain"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  boatswain-postgres-data:

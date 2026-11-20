@@ -39,13 +39,39 @@
 .boatswain-guide-answer a{color:var(--green);font-weight:800;text-decoration:underline}
 @media(max-width:540px){.boatswain-guide{right:14px;bottom:14px}.boatswain-guide-launch{padding:13px 16px}}
 
+
+.estate-experience{background:#f0f4ed;padding:72px 0}.estate-experience .experience-shell{background:#102a24;border-radius:26px;padding:26px;color:#f7f6ee;box-shadow:0 24px 70px #102a2425}.estate-experience .experience-head{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:18px}.estate-experience .experience-head h2{font-size:clamp(27px,4vw,38px);margin:7px 0;color:white}.estate-experience .experience-head p{color:#c8d7ce;max-width:640px;margin:0}.estate-experience .experience-view{height:460px;position:relative;overflow:hidden;border-radius:18px;background:linear-gradient(#dce9df,#a9c69b)}#estate3dCanvas,#estate3dCanvas canvas{width:100%;height:100%;display:block;touch-action:pan-y}.experience-overlay{position:absolute;left:16px;top:16px;padding:9px 13px;border-radius:12px;background:#102a24dd;color:#fff;font-size:12px;pointer-events:none}.experience-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}.experience-controls label{font-size:13px;color:#e2eae4}.experience-controls input[type=range]{min-width:160px;flex:1;accent-color:#d5a84b}.experience-controls .btn{background:#d5a84b;color:#132a24}.experience-controls .btn.outline{border-color:#82998b;color:#f4f5ed;background:transparent}.experience-caption{color:#c8d7ce;font-size:13px;margin:12px 0 0}.estate-selection{min-height:28px;margin:10px 0 0;color:#f6d78e;font-size:14px}.estate-vr-slot button{background:#f4f0df!important;color:#132a24!important;border:0;border-radius:999px;padding:11px 16px;font-weight:750}.experience-next{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.experience-next a{font-weight:750;color:#f4d58e}.experience-next a:hover{text-decoration:underline}@media(max-width:680px){.estate-experience{padding:48px 0}.estate-experience .experience-shell{padding:15px;border-radius:18px}.estate-experience .experience-view{height:340px}.experience-controls{gap:9px}.experience-controls .btn{padding:10px 13px}}
+
 </style>
 </head>
 <body>
 <div class="topbar"><div class="wrap"><span>BOATSWAIN GROUP · Building lasting value</span><span>Nigeria · Ibadan · Property enquiries</span></div></div>
-<header class="nav"><div class="wrap navin"><a class="brand" href="#" aria-label="Boatswain Group home"><img src="https://www.boatswainproperties.com/media/boatlogo.png" alt="Boatswain Properties" style="width:48px;height:48px;object-fit:contain"><span>BOATSWAIN<small>GROUP</small></span></a><button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="primaryNav" aria-label="Open navigation"><span></span><span></span><span></span></button><nav class="links" id="primaryNav" aria-label="Primary navigation"><a href="#divisions">Our divisions</a><a href="#properties">Properties</a><a href="#process">How it works</a><button class="btn" data-modal="account">Sign in / Register</button></nav></div></header>
+<header class="nav"><div class="wrap navin"><a class="brand" href="#" aria-label="Boatswain Group home"><img src="https://www.boatswainproperties.com/media/boatlogo.png" alt="Boatswain Properties" style="width:48px;height:48px;object-fit:contain"><span>BOATSWAIN<small>GROUP</small></span></a><button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="primaryNav" aria-label="Open navigation"><span></span><span></span><span></span></button><nav class="links" id="primaryNav" aria-label="Primary navigation"><a href="#divisions">Our divisions</a><a href="#estate-experience">3D estate tour</a><a href="#properties">Properties</a><a href="#process">How it works</a><button class="btn" data-modal="account">Sign in / Register</button></nav></div></header>
 <main>
 <section class="hero"><div class="wrap"><div class="eyebrow">A group built around opportunity</div><h1>Building lasting value.<br>Creating new possibilities.</h1><p>Discover property opportunities and business services from Boatswain Group. Start with Boatswain Properties and explore what we are building across our divisions.</p><div class="actions"><a class="btn gold" href="#properties">Explore properties <span>→</span></a><a class="btn outline" style="color:white;border-color:#ffffff66" href="#divisions">Explore the group</a></div></div></section>
+
+<section class="estate-experience" id="estate-experience">
+ <div class="wrap">
+  <div class="experience-shell">
+   <div class="experience-head">
+    <div><div class="eyebrow">Explore before you select</div><h2>Walk through the estate.</h2><p>Explore a conceptual 3D estate and farm settlement with livestock, fish ponds, demonstration plots and a development timeline. On supported headsets, enter immersive VR.</p></div>
+    <span class="tag" style="color:#f4d58e">INTERACTIVE 3D · VR WHERE SUPPORTED</span>
+   </div>
+   <div class="experience-view"><div id="estate3dCanvas"><div style="padding:28px;color:#173c2d">Loading the interactive estate model… If the model does not appear, check your internet connection and WebGL support.</div></div><div class="experience-overlay">BOATSWAIN ESTATE · CONCEPT MODEL</div></div>
+   <div class="experience-controls">
+    <label for="estateStage">4D development timeline</label>
+    <input id="estateStage" type="range" min="0" max="3" step="1" value="2" aria-label="Estate development stage">
+    <strong id="estateStageLabel" style="color:#f4d58e;min-width:150px">Estate plots</strong>
+    <button class="btn" id="estateViewReset" type="button">Reset view</button>
+    <button class="btn outline" id="estateViewPlots" type="button">Show plots</button>
+    <span class="estate-vr-slot" id="estateVrButton"></span>
+   </div>
+   <p class="estate-selection" id="estatePlotSelection" aria-live="polite">Select a plot in the 3D model to inspect its demonstration status.</p>
+   <p class="experience-caption">The 4D timeline represents development over time, not a fourth spatial dimension. This illustrative model is not a cadastral survey, legal boundary, live inventory or allocation promise. Confirm exact plot coordinates, dimensions, status and price with Boatswain before purchase.</p>
+   <div class="experience-next"><a href="#properties">Browse property listings ↓</a><a href="#accountModal" data-modal="account">Open customer account / dashboard ↓</a><a href="#agribusiness">Explore agribusiness ↓</a></div>
+  </div>
+ </div>
+</section>
 <section class="section" id="divisions"><div class="wrap"><div class="sectionhead"><div><div class="eyebrow">One group · Multiple opportunities</div><h2>Explore our divisions</h2><p class="muted">Choose a division to discover its services. More division details will be added as each business unit is confirmed.</p></div></div><div class="tiles">
 <a class="tile" href="#properties"><span class="num">01 / PROPERTY</span><div><h3>Boatswain Properties</h3><p>Discover estates, select plots and manage your property journey.</p></div><span class="arrow">↗</span></a>
 <a class="tile" href="#agribusiness"><span class="num">02 / AGRICULTURE</span><div><h3>Agribusiness</h3><p>Livestock, agricultural products and farm opportunities.</p></div><span class="arrow">↗</span></a>
@@ -392,4 +418,6 @@ document.getElementById('year').textContent=new Date().getFullYear();
 })();
 </script>
 
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
+<script type="module" src="/assets/estate-experience.js"></script>
 </body></html>

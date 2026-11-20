@@ -8,6 +8,10 @@ try {
   await page.addInitScript(() => { window.open = (url) => { window.__boatswainOpenedUrl = String(url); return null; }; });
   await page.goto(pathToFileURL(path.resolve('index.html')).href);
   await page.waitForLoadState('domcontentloaded');
+  if (!(await page.locator('#estate-experience').count())) throw new Error('Interactive estate experience landing section is missing');
+  if (!(await page.locator('#estate3dCanvas').count())) throw new Error('3D estate scene mount is missing');
+  if (!(await page.locator('#estateStage').count())) throw new Error('Estate development timeline control is missing');
+  if (!(await page.locator('#estateVrButton').count())) throw new Error('VR entry point is missing');
   if (await page.locator('.property').count() !== 6) throw new Error('Expected six property cards');
   await page.locator('#search').fill('Moniya');
   if (await page.locator('.property:visible').count() !== 1) throw new Error('Property search did not filter to Moniya');
