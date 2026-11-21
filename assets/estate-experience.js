@@ -9,10 +9,13 @@ if (mount) {
   const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 180);
   camera.position.set(17, 19, 25);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
+  const compactDevice = matchMedia('(max-width: 700px), (pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, compactDevice ? 1.25 : 2));
+  renderer.shadowMap.enabled = !compactDevice;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.xr.enabled = true;
+  renderer.domElement.style.touchAction = 'none';
+  renderer.domElement.style.userSelect = 'none';
   mount.append(renderer.domElement);
   scene.add(new THREE.HemisphereLight('#f5fff7', '#71836d', 2.1));
   const sun = new THREE.DirectionalLight('#fff2d3', 2.5);
@@ -89,22 +92,27 @@ if (mount) {
   }
 
   const raycaster=new THREE.Raycaster(), pointer=new THREE.Vector2();
-  let selected=null, stage=0, dragging=false, lastX=0, lastY=0, orbit=0, tilt=.62, distance=34;
+  let selected=null, stage=0, dragging=false, dragMoved=false, lastX=0, lastY=0, orbit=0, tilt=.62, distance=34;
   const detail=document.querySelector('#estatePlotSelection');
   function choose(mesh){
     if(selected)selected.material.color.set(selected.userData.status==='reserved'?colors.reserved:colors.available);
     selected=mesh;selected.material.color.set(colors.selected);
     if(detail)detail.textContent=`${mesh.userData.code} · ${mesh.userData.status==='reserved'?'Reserved in this demonstration':'Available in this demonstration'} · Select a verified plot in the inventory below to make a real reservation.`;
   }
-  renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
-  window.addEventListener('pointerup',()=>dragging=false);
+  renderer.domElement.addEventListener('pointerdown',e=>{dragging=true;dragMoved=false;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture?.(e.pointerId);});
+  const endDrag=()=>{dragging=false;};
+  renderer.domElement.addEventListener('pointerup',endDrag);
+  renderer.domElement.addEventListener('pointercancel',endDrag);
+  window.addEventListener('pointerup',endDrag);
   renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();distance=Math.max(18,Math.min(62,distance+e.deltaY*.025));},{passive:false});
   window.addEventListener('pointermove',e=>{
     if(!dragging||renderer.xr.isPresenting)return;
     const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;
-    if(e.buttons===1){orbit-=dx*.006;tilt=Math.max(.2,Math.min(1.2,tilt+dy*.004));}
+    if(Math.abs(dx)+Math.abs(dy)>5)dragMoved=true;
+    if(e.buttons===1||e.pointerType==='touch'){orbit-=dx*.006;tilt=Math.max(.2,Math.min(1.2,tilt+dy*.004));}
   });
   renderer.domElement.addEventListener('click',e=>{
+    if(dragMoved){dragMoved=false;return;}
     const rect=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-rect.left)/rect.width)*2-1;pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;
     raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(plots)[0];if(hit)choose(hit.object);
   });
