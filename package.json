@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "npm install --prefix backend",
     "dev": "node scripts/dev.mjs",
-    "predevStack": "npm install --prefix backend",
+    "predev:stack": "npm install --prefix backend",
     "dev:api": "npm --prefix backend run dev",
     "build:api": "npm --prefix backend run build",
     "test:api": "npm --prefix backend test",
