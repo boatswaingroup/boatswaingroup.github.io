@@ -12,7 +12,8 @@
     "test:api": "npm --prefix backend test",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
-    "dev:stack": "node scripts/dev.mjs"
+    "dev:stack": "node scripts/dev.mjs",
+    "verify:platform": "node scripts/verify-platform.mjs"
   },
   "engines": {
     "node": ">=22"
