@@ -4,13 +4,16 @@
   "private": true,
   "description": "Boatswain Group web application and property API",
   "scripts": {
+    "predev": "npm install --prefix backend",
     "dev": "node scripts/dev.mjs",
+    "predev:stack": "npm install --prefix backend",
     "dev:api": "npm --prefix backend run dev",
     "build:api": "npm --prefix backend run build",
     "test:api": "npm --prefix backend test",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
-    "dev:stack": "node scripts/dev.mjs"
+    "dev:stack": "node scripts/dev.mjs",
+    "verify:platform": "node scripts/verify-platform.mjs"
   },
   "engines": {
     "node": ">=22"
