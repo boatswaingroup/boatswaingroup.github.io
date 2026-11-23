@@ -17,8 +17,24 @@ const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const docker = process.platform === 'win32' ? 'docker.exe' : 'docker';
 
 if (!existsSync(path.join(backendDir, 'node_modules'))) {
-  console.error('[Boatswain] Install backend packages first: npm install --prefix backend');
-  process.exit(1);
+  console.log('[Boatswain] Backend dependencies are missing; installing them now …');
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn(npm, ['install', '--prefix', 'backend'], {
+        cwd: root, stdio: 'inherit', env: process.env, shell: process.platform === 'win32'
+      });
+      child.once('error', reject);
+      child.once('exit', code => code === 0 ? resolve() : reject(new Error(`npm install --prefix backend exited with code ${code}`)));
+    });
+  } catch (error) {
+    console.error('[Boatswain] Backend dependency installation failed. Check your network and npm configuration, then retry.');
+    console.error(error.message);
+    process.exit(1);
+  }
+  if (!existsSync(path.join(backendDir, 'node_modules'))) {
+    console.error('[Boatswain] Dependency installation finished but backend/node_modules is still missing.');
+    process.exit(1);
+  }
 }
 if (!existsSync(envFile)) {
   const secret = randomBytes(48).toString('hex');
