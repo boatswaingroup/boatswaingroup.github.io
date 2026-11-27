@@ -16,7 +16,15 @@ Do not launch if any required capability is missing.
 
 ## Application endpoints
 
-These are proposed application routes, not yet implemented:
+Application routes currently implemented for customer reads are listed first. Provider issuance and webhook routes below remain proposed and are not yet implemented:
+
+### `GET /api/me/virtual-account` (implemented)
+
+Returns only the authenticated customer's active account details. If no active account exists, it returns an unavailable status and explicitly tells the customer not to transfer to unofficial account details. Pending accounts do not expose an account number.
+
+### `GET /api/me/wallet` (implemented)
+
+Returns the authenticated customer's NGN ledger-derived balance and up to 50 recent ledger entries. Amounts are returned as integer kobo strings.
 
 ### `POST /api/wallet/virtual-account`
 
