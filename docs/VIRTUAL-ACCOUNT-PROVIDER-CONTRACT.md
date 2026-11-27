@@ -34,7 +34,7 @@ Provider callback endpoint. Verify the provider's documented signature against t
 
 ## Posting rule
 
-Only a verified, settled inbound transfer to the customer's assigned account may create a wallet credit. The handler must:
+Only a verified, settled inbound transfer to the customer's assigned account may create a wallet credit. The backend now includes `settleVerifiedWalletFunding` in `backend/src/wallet-funding-ledger.ts`. It accepts a funding-record ID (not raw webhook data), checks ownership, positive amount and NGN currency, changes `RECEIVED` to `SETTLED`, and inserts the unique credit ledger row in one serializable database transaction. Calling it again for a settled record returns the existing ledger entry. A provider webhook must still verify the provider signature and destination before creating/authorizing the funding record and calling this function. The handler must:
 
 1. Persist the provider event/transaction ID under a unique database constraint.
 2. Resolve the account reference to its owning customer on the server.
