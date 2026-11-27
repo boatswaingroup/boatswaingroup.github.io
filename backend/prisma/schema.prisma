@@ -69,6 +69,21 @@ enum LedgerEntryType {
   INSTALLMENT
   REFUND
   ADJUSTMENT
+  WALLET_FUNDING
+}
+
+enum VirtualAccountStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  FAILED
+}
+
+enum WalletFundingStatus {
+  RECEIVED
+  SETTLED
+  REJECTED
+  REVERSED
 }
 
 model Customer {
@@ -87,6 +102,8 @@ model Customer {
   ledgerEntries LedgerEntry[]
   sessions Session[]
   passwordResetTokens PasswordResetToken[]
+  virtualAccounts VirtualAccount[]
+  walletFundings WalletFunding[]
 }
 
 model Session {
@@ -220,12 +237,14 @@ model LedgerEntry {
   id                String           @id @default(cuid())
   customerId        String
   customer          Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  reservationId     String
-  reservation       Reservation      @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  reservationId     String?
+  reservation       Reservation?     @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   paymentPlanId     String?
   paymentPlan       PaymentPlan?     @relation(fields: [paymentPlanId], references: [id], onDelete: Restrict)
   paymentId         String?
   payment           Payment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  walletFundingId   String?          @unique
+  walletFunding     WalletFunding?   @relation(fields: [walletFundingId], references: [id], onDelete: Restrict)
   direction         LedgerDirection
   entryType         LedgerEntryType
   amountKobo        BigInt
@@ -235,6 +254,43 @@ model LedgerEntry {
   createdAt         DateTime         @default(now())
   @@index([customerId, createdAt])
   @@index([reservationId, createdAt])
+}
+
+model VirtualAccount {
+  id                 String               @id @default(cuid())
+  customerId         String
+  customer           Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  provider           String
+  providerAccountRef String
+  accountName        String
+  bankName           String
+  accountNumber      String
+  currency           String               @default("NGN")
+  status             VirtualAccountStatus @default(PENDING)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  walletFundings     WalletFunding[]
+  @@unique([provider, providerAccountRef])
+  @@index([customerId, status])
+}
+
+model WalletFunding {
+  id                    String              @id @default(cuid())
+  customerId            String
+  customer              Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  virtualAccountId      String
+  virtualAccount        VirtualAccount      @relation(fields: [virtualAccountId], references: [id], onDelete: Restrict)
+  provider              String
+  providerTransactionId String
+  amountKobo            BigInt
+  currency              String              @default("NGN")
+  status                WalletFundingStatus @default(RECEIVED)
+  settledAt             DateTime?
+  createdAt             DateTime            @default(now())
+  ledgerEntry           LedgerEntry?
+  @@unique([provider, providerTransactionId])
+  @@index([customerId, createdAt])
+  @@index([virtualAccountId, status])
 }
 
 model Enquiry {
