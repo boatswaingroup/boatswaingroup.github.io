@@ -271,6 +271,7 @@ model VirtualAccount {
   updatedAt          DateTime             @updatedAt
   walletFundings     WalletFunding[]
   @@unique([provider, providerAccountRef])
+  @@unique([provider, accountNumber])
   @@index([customerId, status])
 }
 
