@@ -68,6 +68,27 @@ describe('Boatswain Property API', () => {
     expect((await request(app).get('/api/me')).status).toBe(401);
   });
 
+  it('exposes only the authenticated customer wallet and safe virtual-account status', async () => {
+    const account = await request(app).get('/api/me/virtual-account')
+      .set('Authorization', `Bearer ${customerToken}`);
+    expect(account.status).toBe(200);
+    expect(account.body.available).toBe(false);
+    expect(account.body.virtualAccount).toBeNull();
+    expect(account.body.message).toContain('Do not transfer funds');
+
+    const wallet = await request(app).get('/api/me/wallet')
+      .set('Authorization', `Bearer ${customerToken}`);
+    expect(wallet.status).toBe(200);
+    expect(wallet.body.wallet).toEqual({ currency: 'NGN', balanceKobo: '0' });
+    expect(wallet.body.entries).toEqual([]);
+
+    expect((await request(app).get('/api/me/wallet')).status).toBe(401);
+    const secondWallet = await request(app).get('/api/me/wallet')
+      .set('Authorization', `Bearer ${secondCustomerToken}`);
+    expect(secondWallet.status).toBe(200);
+    expect(secondWallet.body.wallet.balanceKobo).toBe('0');
+  });
+
   it('publishes estate plots and serializes Naira amounts safely', async () => {
     const estates = await request(app).get('/api/estates');
     expect(estates.status).toBe(200);
