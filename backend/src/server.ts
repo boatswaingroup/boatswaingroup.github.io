@@ -270,6 +270,42 @@ app.get('/api/me', authenticate, asyncRoute(async (req, res) => {
   return res.json({ customer });
 }));
 
+app.get('/api/me/virtual-account', authenticate, asyncRoute(async (req, res) => {
+  const account = await prisma.virtualAccount.findFirst({
+    where: { customerId: req.user!.id, status: { in: ['ACTIVE', 'PENDING'] } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, accountName: true, bankName: true, accountNumber: true, currency: true, status: true, createdAt: true }
+  });
+  if (!account || account.status !== 'ACTIVE') {
+    return res.json({
+      virtualAccount: account ? { status: account.status, currency: account.currency } : null,
+      available: false,
+      message: 'A dedicated bank account is not available yet. Do not transfer funds until official account details appear here.'
+    });
+  }
+  return res.json({ virtualAccount: account, available: true });
+}));
+
+app.get('/api/me/wallet', authenticate, asyncRoute(async (req, res) => {
+  const customerId = req.user!.id;
+  const [credits, debits, entries] = await Promise.all([
+    prisma.ledgerEntry.aggregate({ where: { customerId, direction: 'CREDIT', currency: 'NGN' }, _sum: { amountKobo: true } }),
+    prisma.ledgerEntry.aggregate({ where: { customerId, direction: 'DEBIT', currency: 'NGN' }, _sum: { amountKobo: true } }),
+    prisma.ledgerEntry.findMany({
+      where: { customerId, currency: 'NGN' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: { id: true, direction: true, entryType: true, amountKobo: true, currency: true, reference: true, description: true, createdAt: true }
+    })
+  ]);
+  const credited = credits._sum.amountKobo ?? 0n;
+  const debited = debits._sum.amountKobo ?? 0n;
+  return res.json({
+    wallet: { currency: 'NGN', balanceKobo: (credited - debited).toString() },
+    entries: entries.map(entry => ({ ...entry, amountKobo: entry.amountKobo.toString() }))
+  });
+}));
+
 app.get('/api/me/reservations', authenticate, asyncRoute(async (req, res) => {
   await releaseExpiredReservations();
   const reservations = await prisma.reservation.findMany({
